@@ -35,9 +35,11 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
 
-  # Local webview_cef package
   webview_cef:
     path: ../webview_cef
+    # git:
+    #   url: https://github.com/mecha-org/webview_cef.git
+    #   ref: main
 
 dev_dependencies:
   flutter_test:
