@@ -346,6 +346,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     if (oldTab != null) {
       if (oldTab.controller.value) {
         await oldTab.controller.setClientFocus(false);
+        await oldTab.controller.wasHidden(true);
         await oldTab.controller.executeJavaScript(
           "document.dispatchEvent(new Event('visibilitychange'))",
         );
@@ -367,6 +368,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
       final currentActiveTab = state.activeTab;
       if (currentActiveTab != null && currentActiveTab.id == newTab.id) {
         await newTab.controller.setClientFocus(true);
+        await newTab.controller.wasHidden(false);
       }
     });
   }
@@ -425,6 +427,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
         if (currentActiveTab != null &&
             currentActiveTab.id == newActiveTab.id) {
           await newActiveTab.controller.setClientFocus(true);
+          await newActiveTab.controller.wasHidden(false);
         }
       });
     }
@@ -446,6 +449,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
       if (oldTab.controller.value) {
         /// old tab loose focus
         await oldTab.controller.setClientFocus(false);
+        await oldTab.controller.wasHidden(true);
         await oldTab.controller.executeJavaScript(
           "document.dispatchEvent(new Event('visibilitychange'))",
         );
@@ -458,11 +462,13 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     /// new tab get focus
     if (newTab.controller.value) {
       await newTab.controller.setClientFocus(true);
+      await newTab.controller.wasHidden(false);
     } else {
       newTab.controller.ready.then((_) async {
         final currentActiveTab = state.activeTab;
         if (currentActiveTab != null && currentActiveTab.id == newTab.id) {
           await newTab.controller.setClientFocus(true);
+          await newTab.controller.wasHidden(false);
         }
       });
     }
@@ -486,6 +492,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
       final currentActiveTab = state.activeTab;
       if (currentActiveTab != null && currentActiveTab.id == firstTab.id) {
         await firstTab.controller.setClientFocus(true);
+        await firstTab.controller.wasHidden(false);
       }
     });
   }
