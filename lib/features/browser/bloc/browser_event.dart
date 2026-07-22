@@ -47,10 +47,11 @@ class BrowserTitleChanged extends BrowserEvent {
 
 class BrowserNewTabRequested extends BrowserEvent {
   final String? initialUrl;
-  const BrowserNewTabRequested({this.initialUrl});
+  final bool isPrivate;
+  const BrowserNewTabRequested({this.initialUrl, this.isPrivate = false});
 
   @override
-  List<Object?> get props => [initialUrl];
+  List<Object?> get props => [initialUrl, isPrivate];
 }
 
 class BrowserCloseTabRequested extends BrowserEvent {

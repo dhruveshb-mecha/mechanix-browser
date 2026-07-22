@@ -49,7 +49,7 @@ class BrowserMenuListSection extends StatelessWidget {
               onTap: () {
                 onDismiss();
                 if (state.isInitialized) {
-                  bloc.add(BrowserGoHomeRequested());
+                  bloc.add(const BrowserNewTabRequested(isPrivate: true));
                   ScaffoldMessenger.of(context).clearSnackBars();
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(

@@ -35,7 +35,6 @@ class _BrowserScreenState extends State<BrowserScreen> {
                   const BrowserBottomBar(),
                 ],
               ),
-              const BrowserBottomBar(),
             ],
           ),
         );

@@ -62,7 +62,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
   /// Creates a new tab instance with the specified [initialUrl].
   /// Sets up Javascript inject user scripts, instantiates a new CEF webview controller,
   /// attaches event listeners, and initializes the loading of the URL.
-  BrowserTab _createNewTab(String initialUrl) {
+  BrowserTab _createNewTab(String initialUrl, {bool isPrivate = false}) {
     final injectUserScripts = InjectUserScripts();
     injectUserScripts.add(
       UserScript(
@@ -86,7 +86,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
         'tab_${DateTime.now().millisecondsSinceEpoch}_${_tabIdCounter++}';
     final listener = _createEventListenerForTab(tabId, controller);
     controller.setWebviewListener(listener);
-    controller.initialize(initialUrl);
+    controller.initialize(initialUrl, isPrivate: isPrivate);
 
     return BrowserTab(
       id: tabId,
@@ -94,6 +94,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
       currentUrl: initialUrl == AppConstants.homepageUrl ? '' : initialUrl,
       title: '',
       isHomePage: initialUrl == AppConstants.homepageUrl,
+      isPrivate: isPrivate,
     );
   }
 
@@ -351,7 +352,10 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
       }
     }
 
-    final newTab = _createNewTab(event.initialUrl ?? AppConstants.homepageUrl);
+    final newTab = _createNewTab(
+      event.initialUrl ?? AppConstants.homepageUrl,
+      isPrivate: event.isPrivate,
+    );
     final updatedTabs = List<BrowserTab>.from(state.tabs)..add(newTab);
     final newActiveIndex = updatedTabs.length - 1;
 
