@@ -1,5 +1,14 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
-import 'package:webview_cef/webview_cef.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:mechanix_browser/features/browser/bloc/browser_bloc.dart';
+import 'package:mechanix_browser/l10n/app_localizations.dart';
+import 'package:show_fps/show_fps.dart';
+
+import 'core/routes/app_routes.dart';
+import 'core/utils/app_theme.dart';
+import 'features/browser/bloc/browser_bloc.dart';
 
 void main() {
   runApp(const MyApp());
@@ -10,63 +19,31 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Mechanix Browser',
-      theme: ThemeData(
-        colorScheme: .fromSeed(seedColor: Colors.blue),
-        useMaterial3: true,
-      ),
-      home: const MyWebView(),
-    );
-  }
-}
+    final showFps = Platform.environment['SHOW_FPS'] == 'true';
 
-class MyWebView extends StatefulWidget {
-  const MyWebView({super.key});
-
-  @override
-  State<MyWebView> createState() => _MyWebViewState();
-}
-
-class _MyWebViewState extends State<MyWebView> {
-  late final WebViewController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = WebviewManager().createWebView(
-      loading: const Center(child: CircularProgressIndicator()),
-    );
-    _init();
-  }
-
-  Future<void> _init() async {
-    await WebviewManager().initialize(); // call once for the whole app
-    _controller.setWebviewListener(WebviewEventsListener(
-      onUrlChanged: (url) => debugPrint('url => $url'),
-      onLoadEnd: (controller, url) => debugPrint('loaded => $url'),
-    ));
-    await _controller.initialize('https://flutter.dev');
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    WebviewManager().quit(); // only when tearing down the whole app
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Mechanix Browser'),
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-      ),
-      body: ValueListenableBuilder<bool>(
-        valueListenable: _controller,
-        builder: (_, ready, __) =>
-            ready ? _controller.webviewWidget : _controller.loadingWidget,
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider<BrowserBloc>(create: (context) => BrowserBloc()),
+      ],
+      child: MaterialApp(
+        onGenerateTitle: (context) => AppLocalizations.of(context)!.appTitle,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        themeMode: ThemeMode.dark,
+        darkTheme: AppTheme.dark,
+        theme: AppTheme.light,
+        debugShowCheckedModeBanner: false,
+        initialRoute: AppRoutes.home,
+        onGenerateRoute: AppRoutes.onGenerateRoute,
+        builder: showFps
+            ? (context, child) {
+                return ShowFPS(
+                  visible: showFps,
+                  showChart: false,
+                  child: child!,
+                );
+              }
+            : null,
       ),
     );
   }

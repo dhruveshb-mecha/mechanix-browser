@@ -30,21 +30,31 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  intl: ^0.20.2
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
-
+  flutter_bloc: ^9.1.1
+  bloc: ^9.2.0
+  equatable: ^2.0.8
+  show_fps: ^1.1.0
+  objectbox: ^5.3.2
+  objectbox_flutter_libs: ^5.3.2
   webview_cef:
-    path: ../webview_cef
-    # git:
-    #   url: https://github.com/mecha-org/webview_cef.git
-    #   ref: main
+    git:
+      url: https://github.com/mecha-org/webview_cef.git
+      ref: main
+  # path: ../webview_cef
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-
+  build_runner: any
+  objectbox_generator: ^5.3.2
+  
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
   # activated in the `analysis_options.yaml` file located at the root of your
@@ -62,6 +72,9 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
+  assets:
+    - assets/images/logo.png
 
   # To add assets to your application, add an assets section, like this:
   # assets:

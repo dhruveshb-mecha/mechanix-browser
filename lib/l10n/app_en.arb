@@ -1,0 +1,247 @@
+{
+  "appTitle": "Mechanix Browser",
+  "@appTitle": {
+    "description": "The title of the application"
+  },
+  "searchOrEnterAddress": "Search or enter address",
+  "@searchOrEnterAddress": {
+    "description": "Hint text for the search bar"
+  },
+  "newTab": "New tab",
+  "@newTab": {
+    "description": "Menu option to open a new tab"
+  },
+  "newPrivateTab": "New Private Tab",
+  "@newPrivateTab": {
+    "description": "Menu option to open a new private tab"
+  },
+  "history": "History",
+  "@history": {
+    "description": "History feature name"
+  },
+  "bookmarks": "Bookmarks",
+  "@bookmarks": {
+    "description": "Bookmarks feature name"
+  },
+  "downloads": "Downloads",
+  "@downloads": {
+    "description": "Downloads feature name"
+  },
+  "share": "Share",
+  "@share": {
+    "description": "Share page option"
+  },
+  "desktopSite": "Desktop site",
+  "@desktopSite": {
+    "description": "Desktop site checkbox option"
+  },
+  "settings": "Settings",
+  "@settings": {
+    "description": "Settings feature name"
+  },
+  "closeAll": "Close all",
+  "@closeAll": {
+    "description": "Button text to close all tabs"
+  },
+  "comingSoon": "{feature} is Coming Soon",
+  "@comingSoon": {
+    "description": "Indicates that a feature is coming soon",
+    "placeholders": {
+      "feature": {
+        "type": "String"
+      }
+    }
+  },
+  "workingHard": "We're working hard to bring this feature to you.",
+  "@workingHard": {
+    "description": "Subtitle details for coming soon features"
+  },
+  "privateTabOpened": "Private tab opened",
+  "@privateTabOpened": {
+    "description": "Snackbar text when private tab is opened"
+  },
+  "sharingPage": "Sharing page...",
+  "@sharingPage": {
+    "description": "Snackbar text when sharing a page"
+  },
+  "pageBookmarked": "Page bookmarked",
+  "@pageBookmarked": {
+    "description": "Snackbar text when bookmarking a page"
+  },
+  "bookmarkRemoved": "Bookmark removed",
+  "@bookmarkRemoved": {
+    "description": "Snackbar text when removing a bookmark"
+  },
+  "desktopSiteEnabled": "Desktop site enabled",
+  "@desktopSiteEnabled": {
+    "description": "Snackbar text when desktop site layout is enabled"
+  },
+  "desktopSiteDisabled": "Desktop site disabled",
+  "@desktopSiteDisabled": {
+    "description": "Snackbar text when desktop site layout is disabled"
+  },
+  "noRouteDefined": "No route defined for {routeName}",
+  "@noRouteDefined": {
+    "description": "Text displayed when route is not found",
+    "placeholders": {
+      "routeName": {
+        "type": "String"
+      }
+    }
+  },
+  "addFavorite": "Add favourite",
+  "@addFavorite": {
+    "description": "Button text to add a favorite"
+  },
+  "addFavoriteTitle": "Add favorite",
+  "@addFavoriteTitle": {
+    "description": "Title of the add favorite dialog"
+  },
+  "nameLabel": "Name",
+  "@nameLabel": {
+    "description": "Label for name field"
+  },
+  "favoriteNameHint": "Favorite name",
+  "@favoriteNameHint": {
+    "description": "Hint for favorite name field"
+  },
+  "urlLabel": "URL",
+  "@urlLabel": {
+    "description": "Label for URL field"
+  },
+  "urlHint": "example.com",
+  "@urlHint": {
+    "description": "Hint for URL field"
+  },
+  "pleaseEnterUrl": "Please enter a URL",
+  "@pleaseEnterUrl": {
+    "description": "Validation error when URL is empty"
+  },
+  "pleaseEnterValidUrl": "Please enter a valid URL",
+  "@pleaseEnterValidUrl": {
+    "description": "Validation error when URL is invalid"
+  },
+  "cancel": "Cancel",
+  "@cancel": {
+    "description": "Cancel button label"
+  },
+  "save": "Save",
+  "@save": {
+    "description": "Save button label"
+  },
+  "openPageFirst": "Open a page first",
+  "@openPageFirst": {
+    "description": "Subtitle text when no active page is available to bookmark"
+  },
+  "currentPageBookmarked": "Current page bookmarked",
+  "@currentPageBookmarked": {
+    "description": "Title when current page is already bookmarked"
+  },
+  "addCurrentPage": "Add current page",
+  "@addCurrentPage": {
+    "description": "Title when current page can be added to bookmarks"
+  },
+  "favoritesSectionHeader": "FAVORITES",
+  "@favoritesSectionHeader": {
+    "description": "Section header for favorites"
+  },
+  "noFavoritesSaved": "No favorites saved",
+  "@noFavoritesSaved": {
+    "description": "Empty state text when no favorites exist"
+  },
+  "bookmarksSectionHeader": "BOOKMARKS",
+  "@bookmarksSectionHeader": {
+    "description": "Section header for bookmarks"
+  },
+  "noBookmarksSaved": "No bookmarks saved",
+  "@noBookmarksSaved": {
+    "description": "Empty state text when no bookmarks exist"
+  },
+  "findInPage": "Find in page",
+  "@findInPage": {
+    "description": "Hint text for find in page search bar"
+  },
+  "previousMatch": "Previous match",
+  "@previousMatch": {
+    "description": "Tooltip for previous match button"
+  },
+  "nextMatch": "Next match",
+  "@nextMatch": {
+    "description": "Tooltip for next match button"
+  },
+  "siteCantBeReached": "This site can't be reached",
+  "@siteCantBeReached": {
+    "description": "Title text on web error page"
+  },
+  "checkTypoInUrl": "Check if there is a typo in {url}.",
+  "@checkTypoInUrl": {
+    "description": "Description on web error page",
+    "placeholders": {
+      "url": {
+        "type": "String"
+      }
+    }
+  },
+  "reload": "Reload",
+  "@reload": {
+    "description": "Button label to reload page"
+  },
+  "clearFinished": "Clear finished",
+  "@clearFinished": {
+    "description": "Tooltip for clearing finished downloads"
+  },
+  "openDownloadsFolder": "Open Downloads Folder",
+  "@openDownloadsFolder": {
+    "description": "Tooltip for opening downloads directory"
+  },
+  "noDownloadsYet": "No downloads yet",
+  "@noDownloadsYet": {
+    "description": "Empty state title for downloads"
+  },
+  "noDownloadsDescription": "Files downloaded from web pages will appear here.",
+  "@noDownloadsDescription": {
+    "description": "Empty state subtitle for downloads"
+  },
+  "openFolder": "Open Folder",
+  "@openFolder": {
+    "description": "Tooltip/button to open file folder"
+  },
+  "failed": "Failed",
+  "@failed": {
+    "description": "Download status text for failed downloads"
+  },
+  "cancelled": "Cancelled",
+  "@cancelled": {
+    "description": "Download status text for cancelled downloads"
+  },
+  "networkError": "Network error",
+  "@networkError": {
+    "description": "Error reason for network error"
+  },
+  "serverError": "Server error",
+  "@serverError": {
+    "description": "Error reason for server error"
+  },
+  "userError": "User error",
+  "@userError": {
+    "description": "Error reason for user error"
+  },
+  "fileFailed": "File failed",
+  "@fileFailed": {
+    "description": "Error reason for file error"
+  },
+  "downloadingFile": "Downloading {filename}",
+  "@downloadingFile": {
+    "description": "Toast text for downloading a file",
+    "placeholders": {
+      "filename": {
+        "type": "String"
+      }
+    }
+  },
+  "downloadingFiles": "Downloading files...",
+  "@downloadingFiles": {
+    "description": "Toast text for downloading multiple files"
+  }
+}
+
