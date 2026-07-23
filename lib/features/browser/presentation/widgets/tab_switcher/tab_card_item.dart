@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:mechanix_browser/core/utils/app_theme.dart';
 import 'package:mechanix_browser/features/browser/data/models/browser_tab.dart';
 import 'package:mechanix_browser/l10n/app_localizations.dart';
+import 'package:webview_cef/webview_cef.dart';
 
 class TabCardItem extends StatelessWidget {
   final BrowserTab tab;
@@ -48,9 +49,16 @@ class TabCardItem extends StatelessWidget {
         clipBehavior: Clip.antiAlias,
         child: Stack(
           children: [
-            Center(
-              child: Icon(Icons.public, size: 48, color: colors.dragHandle),
+            // WebView preview
+            Positioned.fill(
+              bottom: 40, // Leave space for the title bar at the bottom
+              child: IgnorePointer(child: StaticWebView(tab.controller)),
             ),
+            // Fallback for empty/loading tabs
+            if (tab.currentUrl.isEmpty)
+              Center(
+                child: Icon(Icons.public, size: 48, color: colors.dragHandle),
+              ),
             Positioned(
               left: 0,
               right: 0,
