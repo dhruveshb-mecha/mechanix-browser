@@ -7,8 +7,10 @@ import 'package:mechanix_browser/core/utils/constants.dart';
 import 'package:mechanix_browser/features/browser/data/models/bookmark.dart';
 import 'package:mechanix_browser/features/browser/data/models/browser_history.dart';
 import 'package:mechanix_browser/features/browser/data/models/browser_tab.dart';
+import 'package:mechanix_browser/features/browser/data/models/tab_entity.dart';
 import 'package:mechanix_browser/features/browser/data/repositories/bookmark_repository.dart';
 import 'package:mechanix_browser/features/browser/data/repositories/history_repository.dart';
+import 'package:mechanix_browser/features/browser/data/repositories/tab_repository.dart';
 // import 'package:mechanix_browser/features/browser/download/bloc/download_bloc.dart';
 // import 'package:mechanix_browser/features/browser/download/bloc/download_event.dart';
 import 'package:webview_cef/webview_cef.dart';
@@ -24,6 +26,9 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
 
   /// Repository managing local bookmarks persistency.
   BookmarkRepository? _bookmarkRepository;
+
+  /// Repository managing local tabs persistency.
+  TabRepository? _tabRepository;
 
   /// Local incremental counter for unique tab ID generation.
   int _tabIdCounter = 0;
@@ -62,7 +67,12 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
   /// Creates a new tab instance with the specified [initialUrl].
   /// Sets up Javascript inject user scripts, instantiates a new CEF webview controller,
   /// attaches event listeners, and initializes the loading of the URL.
-  BrowserTab _createNewTab(String initialUrl, {bool isPrivate = false}) {
+  BrowserTab _createNewTab(
+    String initialUrl, {
+    bool isPrivate = false,
+    String? id,
+    bool load = true,
+  }) {
     final injectUserScripts = InjectUserScripts();
     injectUserScripts.add(
       UserScript(
@@ -83,10 +93,12 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     );
 
     final tabId =
-        'tab_${DateTime.now().millisecondsSinceEpoch}_${_tabIdCounter++}';
+        id ?? 'tab_${DateTime.now().millisecondsSinceEpoch}_${_tabIdCounter++}';
     final listener = _createEventListenerForTab(tabId, controller);
     controller.setWebviewListener(listener);
-    controller.initialize(initialUrl, isPrivate: isPrivate);
+    if (load) {
+      controller.initialize(initialUrl, isPrivate: isPrivate);
+    }
 
     return BrowserTab(
       id: tabId,
@@ -208,12 +220,35 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
       _bookmarkRepository = await BookmarkRepository.create(
         store: _historyRepository!.store,
       );
+      _tabRepository = await TabRepository.create(
+        store: _historyRepository!.store,
+      );
 
       await WebviewManager().initialize(
         userAgent: AppConstants.defaultUserAgent,
       );
 
-      final firstTab = _createNewTab(AppConstants.homepageUrl);
+      final savedTabs = _tabRepository!.getAllTabs();
+      final List<BrowserTab> tabs = [];
+      int activeTabIndex = 0;
+
+      if (savedTabs.isEmpty) {
+        tabs.add(_createNewTab(AppConstants.homepageUrl));
+        activeTabIndex = 0;
+      } else {
+        for (int i = 0; i < savedTabs.length; i++) {
+          final tabEntity = savedTabs[i];
+          final tab = _createNewTab(
+            tabEntity.url.isEmpty ? AppConstants.homepageUrl : tabEntity.url,
+            id: tabEntity.tabId,
+            load: tabEntity.isActive,
+          );
+          tabs.add(tab);
+          if (tabEntity.isActive) {
+            activeTabIndex = i;
+          }
+        }
+      }
 
       final favorites = _bookmarkRepository!.getFavorites();
       final bookmarks = _bookmarkRepository!.getBookmarks();
@@ -221,8 +256,8 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
       emit(
         state.copyWith(
           isInitialized: true,
-          tabs: [firstTab],
-          activeTabIndex: 0,
+          tabs: tabs,
+          activeTabIndex: activeTabIndex,
           favorites: favorites,
           bookmarks: bookmarks,
           isCurrentUrlBookmarked: false,
@@ -363,6 +398,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     emit(state.copyWith(tabs: updatedTabs, activeTabIndex: newActiveIndex));
 
     _updateCurrentPageBookmarkStatus(emit, targetUrl: newTab.currentUrl);
+    _persistTabs();
 
     newTab.controller.ready.then((_) async {
       final currentActiveTab = state.activeTab;
@@ -417,6 +453,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
 
     final newActiveTab = updatedTabs[newActiveIndex];
     _updateCurrentPageBookmarkStatus(emit, targetUrl: newActiveTab.currentUrl);
+    _persistTabs();
 
     /// focus new tab when new tab ready
     if (newActiveTab.controller.value) {
@@ -458,12 +495,17 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
 
     emit(state.copyWith(activeTabIndex: index));
     _updateCurrentPageBookmarkStatus(emit, targetUrl: newTab.currentUrl);
+    // _persistTabs();
 
     /// new tab get focus
     if (newTab.controller.value) {
       await newTab.controller.setClientFocus(true);
       await newTab.controller.wasHidden(false);
     } else {
+      newTab.controller.initialize(
+        newTab.isHomePage ? AppConstants.homepageUrl : newTab.currentUrl,
+        isPrivate: newTab.isPrivate,
+      );
       newTab.controller.ready.then((_) async {
         final currentActiveTab = state.activeTab;
         if (currentActiveTab != null && currentActiveTab.id == newTab.id) {
@@ -479,6 +521,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     BrowserCloseAllTabsRequested event,
     Emitter<BrowserState> emit,
   ) async {
+    print("Closing all tabs and resetting to homepage.");
     for (final tab in state.tabs) {
       await tab.controller.dispose();
     }
@@ -487,6 +530,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
 
     emit(state.copyWith(tabs: [firstTab], activeTabIndex: 0));
     _updateCurrentPageBookmarkStatus(emit, targetUrl: '');
+    // _persistTabs();
 
     firstTab.controller.ready.then((_) async {
       final currentActiveTab = state.activeTab;
@@ -495,6 +539,27 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
         await firstTab.controller.wasHidden(false);
       }
     });
+  }
+
+  /// Helper to persist current tabs state.
+  void _persistTabs() {
+    if (_tabRepository == null) return;
+
+    final tabsToSave = <TabEntity>[];
+    for (int i = 0; i < state.tabs.length; i++) {
+      final tab = state.tabs[i];
+      tabsToSave.add(
+        TabEntity(
+          tabId: tab.id,
+          tabIndex: i,
+          url: tab.isHomePage ? '' : tab.currentUrl,
+          title: tab.title,
+          isActive: i == state.activeTabIndex,
+        ),
+      );
+    }
+    _tabRepository!.deleteAllTabs();
+    _tabRepository!.saveAllTabs(tabsToSave);
   }
 
   /// Handler to load a new URL in the active tab.
@@ -530,6 +595,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
 
     emit(state.copyWith(tabs: updatedTabs, searchResults: []));
     _updateCurrentPageBookmarkStatus(emit, targetUrl: finalUrl);
+    // _persistTabs();
 
     if (activeTab.controller.value) {
       await activeTab.controller.loadUrl(finalUrl);
@@ -615,6 +681,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
         targetUrl: isHome ? '' : event.url,
       );
     }
+    // _persistTabs();
   }
 
   /// Handler triggered when a tab's document title changes.
@@ -628,6 +695,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     updatedTabs[index] = updatedTab;
 
     emit(state.copyWith(tabs: updatedTabs));
+    _persistTabs();
   }
 
   /// Handler to clear all browser history entries from persistent storage.

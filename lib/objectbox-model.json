@@ -75,9 +75,48 @@
         }
       ],
       "relations": []
+    },
+    {
+      "id": "3:1923416986273577909",
+      "lastPropertyId": "6:5339588714681877315",
+      "name": "TabEntity",
+      "properties": [
+        {
+          "id": "1:6703680030027071551",
+          "name": "id",
+          "type": 6,
+          "flags": 1
+        },
+        {
+          "id": "2:5141464918355808934",
+          "name": "tabId",
+          "type": 9
+        },
+        {
+          "id": "3:4897258136141295674",
+          "name": "tabIndex",
+          "type": 6
+        },
+        {
+          "id": "4:7181473789280925111",
+          "name": "url",
+          "type": 9
+        },
+        {
+          "id": "5:3414454135073186159",
+          "name": "title",
+          "type": 9
+        },
+        {
+          "id": "6:5339588714681877315",
+          "name": "isActive",
+          "type": 1
+        }
+      ],
+      "relations": []
     }
   ],
-  "lastEntityId": "2:6376501229577372533",
+  "lastEntityId": "3:1923416986273577909",
   "lastIndexId": "0:0",
   "lastRelationId": "0:0",
   "lastSequenceId": "0:0",

@@ -16,6 +16,7 @@ import 'package:objectbox_flutter_libs/objectbox_flutter_libs.dart';
 
 import 'features/browser/data/models/bookmark.dart';
 import 'features/browser/data/models/browser_history.dart';
+import 'features/browser/data/models/tab_entity.dart';
 
 export 'package:objectbox/objectbox.dart'; // so that callers only have to import this file
 
@@ -106,6 +107,52 @@ final _entities = <obx_int.ModelEntity>[
     relations: <obx_int.ModelRelation>[],
     backlinks: <obx_int.ModelBacklink>[],
   ),
+  obx_int.ModelEntity(
+    id: const obx_int.IdUid(3, 1923416986273577909),
+    name: 'TabEntity',
+    lastPropertyId: const obx_int.IdUid(6, 5339588714681877315),
+    flags: 0,
+    properties: <obx_int.ModelProperty>[
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(1, 6703680030027071551),
+        name: 'id',
+        type: 6,
+        flags: 1,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(2, 5141464918355808934),
+        name: 'tabId',
+        type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(3, 4897258136141295674),
+        name: 'tabIndex',
+        type: 6,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(4, 7181473789280925111),
+        name: 'url',
+        type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(5, 3414454135073186159),
+        name: 'title',
+        type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(6, 5339588714681877315),
+        name: 'isActive',
+        type: 1,
+        flags: 0,
+      ),
+    ],
+    relations: <obx_int.ModelRelation>[],
+    backlinks: <obx_int.ModelBacklink>[],
+  ),
 ];
 
 /// Shortcut for [obx.Store.new] that passes [getObjectBoxModel] and for Flutter
@@ -151,7 +198,7 @@ obx_int.ModelDefinition getObjectBoxModel() {
     // Typically, this is done with `dart run build_runner build`.
     generatorVersion: obx_int.GeneratorVersion.v2025_12_16,
     entities: _entities,
-    lastEntityId: const obx_int.IdUid(2, 6376501229577372533),
+    lastEntityId: const obx_int.IdUid(3, 1923416986273577909),
     lastIndexId: const obx_int.IdUid(0, 0),
     lastRelationId: const obx_int.IdUid(0, 0),
     lastSequenceId: const obx_int.IdUid(0, 0),
@@ -225,11 +272,13 @@ obx_int.ModelDefinition getObjectBoxModel() {
       },
       objectToFB: (Bookmark object, fb.Builder fbb) {
         final urlOffset = fbb.writeString(object.url);
-        final iconUrlOffset =
-            object.iconUrl == null ? null : fbb.writeString(object.iconUrl!);
+        final iconUrlOffset = object.iconUrl == null
+            ? null
+            : fbb.writeString(object.iconUrl!);
         final typeStringOffset = fbb.writeString(object.typeString);
-        final titleOffset =
-            object.title == null ? null : fbb.writeString(object.title!);
+        final titleOffset = object.title == null
+            ? null
+            : fbb.writeString(object.title!);
         fbb.startTable(8);
         fbb.addInt64(0, object.id);
         fbb.addOffset(1, urlOffset);
@@ -282,6 +331,70 @@ obx_int.ModelDefinition getObjectBoxModel() {
           timestamp: timestampParam,
           typeString: typeStringParam,
           score: scoreParam,
+        );
+
+        return object;
+      },
+    ),
+    TabEntity: obx_int.EntityDefinition<TabEntity>(
+      model: _entities[2],
+      toOneRelations: (TabEntity object) => [],
+      toManyRelations: (TabEntity object) => {},
+      getId: (TabEntity object) => object.id,
+      setId: (TabEntity object, int id) {
+        object.id = id;
+      },
+      objectToFB: (TabEntity object, fb.Builder fbb) {
+        final tabIdOffset = fbb.writeString(object.tabId);
+        final urlOffset = fbb.writeString(object.url);
+        final titleOffset = fbb.writeString(object.title);
+        fbb.startTable(7);
+        fbb.addInt64(0, object.id);
+        fbb.addOffset(1, tabIdOffset);
+        fbb.addInt64(2, object.tabIndex);
+        fbb.addOffset(3, urlOffset);
+        fbb.addOffset(4, titleOffset);
+        fbb.addBool(5, object.isActive);
+        fbb.finish(fbb.endTable());
+        return object.id;
+      },
+      objectFromFB: (obx.Store store, ByteData fbData) {
+        final buffer = fb.BufferContext(fbData);
+        final rootOffset = buffer.derefObject(0);
+        final idParam = const fb.Int64Reader().vTableGet(
+          buffer,
+          rootOffset,
+          4,
+          0,
+        );
+        final tabIdParam = const fb.StringReader(
+          asciiOptimization: true,
+        ).vTableGet(buffer, rootOffset, 6, '');
+        final tabIndexParam = const fb.Int64Reader().vTableGet(
+          buffer,
+          rootOffset,
+          8,
+          0,
+        );
+        final urlParam = const fb.StringReader(
+          asciiOptimization: true,
+        ).vTableGet(buffer, rootOffset, 10, '');
+        final titleParam = const fb.StringReader(
+          asciiOptimization: true,
+        ).vTableGet(buffer, rootOffset, 12, '');
+        final isActiveParam = const fb.BoolReader().vTableGet(
+          buffer,
+          rootOffset,
+          14,
+          false,
+        );
+        final object = TabEntity(
+          id: idParam,
+          tabId: tabIdParam,
+          tabIndex: tabIndexParam,
+          url: urlParam,
+          title: titleParam,
+          isActive: isActiveParam,
         );
 
         return object;
@@ -350,5 +463,38 @@ class Bookmark_ {
   /// See [Bookmark.title].
   static final title = obx.QueryStringProperty<Bookmark>(
     _entities[1].properties[6],
+  );
+}
+
+/// [TabEntity] entity fields to define ObjectBox queries.
+class TabEntity_ {
+  /// See [TabEntity.id].
+  static final id = obx.QueryIntegerProperty<TabEntity>(
+    _entities[2].properties[0],
+  );
+
+  /// See [TabEntity.tabId].
+  static final tabId = obx.QueryStringProperty<TabEntity>(
+    _entities[2].properties[1],
+  );
+
+  /// See [TabEntity.tabIndex].
+  static final tabIndex = obx.QueryIntegerProperty<TabEntity>(
+    _entities[2].properties[2],
+  );
+
+  /// See [TabEntity.url].
+  static final url = obx.QueryStringProperty<TabEntity>(
+    _entities[2].properties[3],
+  );
+
+  /// See [TabEntity.title].
+  static final title = obx.QueryStringProperty<TabEntity>(
+    _entities[2].properties[4],
+  );
+
+  /// See [TabEntity.isActive].
+  static final isActive = obx.QueryBooleanProperty<TabEntity>(
+    _entities[2].properties[5],
   );
 }
