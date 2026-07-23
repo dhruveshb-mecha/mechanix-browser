@@ -50,13 +50,6 @@ class BrowserMenuListSection extends StatelessWidget {
                 onDismiss();
                 if (state.isInitialized) {
                   bloc.add(const BrowserNewTabRequested(isPrivate: true));
-                  ScaffoldMessenger.of(context).clearSnackBars();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(l10n.privateTabOpened),
-                      duration: const Duration(seconds: 2),
-                    ),
-                  );
                 }
               },
             ),
@@ -97,13 +90,6 @@ class BrowserMenuListSection extends StatelessWidget {
               label: l10n.share,
               onTap: () {
                 onDismiss();
-                ScaffoldMessenger.of(context).clearSnackBars();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(l10n.sharingPage),
-                    duration: const Duration(seconds: 2),
-                  ),
-                );
               },
             ),
             MenuPopupListTile(

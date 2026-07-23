@@ -1,9 +1,15 @@
 part of 'browser_bloc.dart';
 
+enum BrowserMode { normal, private }
+
 class BrowserState extends Equatable {
   final bool isInitialized;
-  final List<BrowserTab> tabs;
-  final int activeTabIndex;
+  final List<BrowserTab> normalTabs;
+  final List<BrowserTab> privateTabs;
+  final int activeNormalTabIndex;
+  final int activePrivateTabIndex;
+  final BrowserMode mode;
+  final BrowserMode tabSwitcherMode;
   final List<BrowserHistory> searchResults;
   final List<Bookmark> favorites;
   final List<Bookmark> bookmarks;
@@ -11,8 +17,12 @@ class BrowserState extends Equatable {
 
   const BrowserState({
     required this.isInitialized,
-    required this.tabs,
-    required this.activeTabIndex,
+    required this.normalTabs,
+    required this.privateTabs,
+    required this.activeNormalTabIndex,
+    required this.activePrivateTabIndex,
+    required this.mode,
+    required this.tabSwitcherMode,
     required this.searchResults,
     required this.favorites,
     required this.bookmarks,
@@ -20,26 +30,41 @@ class BrowserState extends Equatable {
   });
 
   const BrowserState.initial()
-    : isInitialized = false,
-      tabs = const [],
-      activeTabIndex = 0,
-      searchResults = const [],
-      favorites = const [],
-      bookmarks = const [],
-      isCurrentUrlBookmarked = false;
+      : isInitialized = false,
+        normalTabs = const [],
+        privateTabs = const [],
+        activeNormalTabIndex = 0,
+        activePrivateTabIndex = 0,
+        mode = BrowserMode.normal,
+        tabSwitcherMode = BrowserMode.normal,
+        searchResults = const [],
+        favorites = const [],
+        bookmarks = const [],
+        isCurrentUrlBookmarked = false;
+
+  List<BrowserTab> get tabs =>
+      mode == BrowserMode.normal ? normalTabs : privateTabs;
+
+  int get activeTabIndex =>
+      mode == BrowserMode.normal ? activeNormalTabIndex : activePrivateTabIndex;
 
   BrowserTab? get activeTab =>
       tabs.isNotEmpty && activeTabIndex >= 0 && activeTabIndex < tabs.length
-      ? tabs[activeTabIndex]
-      : null;
+          ? tabs[activeTabIndex]
+          : null;
+
   bool get isHomePage => activeTab?.isHomePage ?? true;
   String get currentUrl => activeTab?.currentUrl ?? '';
   String get title => activeTab?.title ?? '';
 
   BrowserState copyWith({
     bool? isInitialized,
-    List<BrowserTab>? tabs,
-    int? activeTabIndex,
+    List<BrowserTab>? normalTabs,
+    List<BrowserTab>? privateTabs,
+    int? activeNormalTabIndex,
+    int? activePrivateTabIndex,
+    BrowserMode? mode,
+    BrowserMode? tabSwitcherMode,
     List<BrowserHistory>? searchResults,
     List<Bookmark>? favorites,
     List<Bookmark>? bookmarks,
@@ -47,8 +72,14 @@ class BrowserState extends Equatable {
   }) {
     return BrowserState(
       isInitialized: isInitialized ?? this.isInitialized,
-      tabs: tabs ?? this.tabs,
-      activeTabIndex: activeTabIndex ?? this.activeTabIndex,
+      normalTabs: normalTabs ?? this.normalTabs,
+      privateTabs: privateTabs ?? this.privateTabs,
+      activeNormalTabIndex:
+          activeNormalTabIndex ?? this.activeNormalTabIndex,
+      activePrivateTabIndex:
+          activePrivateTabIndex ?? this.activePrivateTabIndex,
+      mode: mode ?? this.mode,
+      tabSwitcherMode: tabSwitcherMode ?? this.tabSwitcherMode,
       searchResults: searchResults ?? this.searchResults,
       favorites: favorites ?? this.favorites,
       bookmarks: bookmarks ?? this.bookmarks,
@@ -59,12 +90,16 @@ class BrowserState extends Equatable {
 
   @override
   List<Object?> get props => [
-    isInitialized,
-    tabs,
-    activeTabIndex,
-    searchResults,
-    favorites,
-    bookmarks,
-    isCurrentUrlBookmarked,
-  ];
+        isInitialized,
+        normalTabs,
+        privateTabs,
+        activeNormalTabIndex,
+        activePrivateTabIndex,
+        mode,
+        tabSwitcherMode,
+        searchResults,
+        favorites,
+        bookmarks,
+        isCurrentUrlBookmarked,
+      ];
 }

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mechanix_browser/core/utils/app_theme.dart';
 import 'package:mechanix_browser/features/browser/bloc/browser_bloc.dart';
-import 'package:mechanix_browser/l10n/app_localizations.dart';
 
 import 'menu/browser_menu_bottom_bar.dart';
 import 'menu/browser_menu_list_section.dart';
@@ -31,16 +30,6 @@ class _BrowserMenuPopupContentState extends State<BrowserMenuPopupContent> {
     setState(() {
       isDesktopSite = newValue;
     });
-    final l10n = AppLocalizations.of(context)!;
-    ScaffoldMessenger.of(context).clearSnackBars();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          isDesktopSite ? l10n.desktopSiteEnabled : l10n.desktopSiteDisabled,
-        ),
-        duration: const Duration(seconds: 2),
-      ),
-    );
   }
 
   @override

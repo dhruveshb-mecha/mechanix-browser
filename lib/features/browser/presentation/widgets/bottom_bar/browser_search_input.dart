@@ -7,6 +7,7 @@ class BrowserSearchInput extends StatelessWidget {
   final TextEditingController controller;
   final ValueChanged<String> onChanged;
   final ValueChanged<String> onSubmitted;
+  final bool isPrivate;
 
   const BrowserSearchInput({
     super.key,
@@ -14,6 +15,7 @@ class BrowserSearchInput extends StatelessWidget {
     required this.controller,
     required this.onChanged,
     required this.onSubmitted,
+    this.isPrivate = false,
   });
 
   @override
@@ -37,8 +39,16 @@ class BrowserSearchInput extends StatelessWidget {
         EdgeInsets.symmetric(horizontal: 16),
       ),
       constraints: const BoxConstraints(minHeight: 48, maxHeight: 48),
-      leading: Icon(Icons.lock_outline, color: colors.inactiveGrey, size: 18),
-      hintText: l10n.searchOrEnterAddress,
+      leading: isPrivate
+          ? Icon(
+              Icons.visibility_off_outlined,
+              color: colors.inactiveGrey,
+              size: 18,
+            )
+          : Icon(Icons.lock_outline, color: colors.inactiveGrey, size: 18),
+      hintText: isPrivate
+          ? '${l10n.searchOrEnterAddress} (Private)'
+          : l10n.searchOrEnterAddress,
       hintStyle: WidgetStatePropertyAll(
         theme.textTheme.bodyLarge?.copyWith(color: colors.searchBarHint),
       ),

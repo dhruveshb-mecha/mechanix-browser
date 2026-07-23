@@ -191,6 +191,7 @@ class _BrowserBottomBarState extends State<BrowserBottomBar> {
                     child: BrowserSearchInput(
                       focusNode: _focusNode,
                       controller: _textController,
+                      isPrivate: state.mode == BrowserMode.private,
                       onChanged: (value) {
                         _debounceTimer?.cancel();
                         _debounceTimer = Timer(
@@ -213,9 +214,14 @@ class _BrowserBottomBarState extends State<BrowserBottomBar> {
                   if (!_focusNode.hasFocus)
                     BrowserBottomActions(
                       tabCount: state.tabs.length,
+                      // isPrivate: state.mode == BrowserMode.private,
                       onNewTab: () {
                         if (state.isInitialized) {
-                          bloc.add(const BrowserNewTabRequested());
+                          bloc.add(
+                            BrowserNewTabRequested(
+                              isPrivate: state.mode == BrowserMode.private,
+                            ),
+                          );
                           bloc.add(const BrowserSearchQueryChanged(''));
                           _hideOverlay();
                           _focusNode.unfocus();

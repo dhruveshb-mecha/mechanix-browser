@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:mechanix_browser/core/utils/app_theme.dart';
 import 'package:mechanix_browser/features/browser/bloc/browser_bloc.dart';
 import 'package:mechanix_browser/features/browser/presentation/widgets/home_page_body.dart';
 
@@ -10,16 +11,38 @@ class BrowserWebviewBody extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocBuilder<BrowserBloc, BrowserState>(
       buildWhen: (previous, current) =>
-          previous.tabs != current.tabs ||
-          previous.activeTabIndex != current.activeTabIndex,
+          previous.normalTabs != current.normalTabs ||
+          previous.privateTabs != current.privateTabs ||
+          previous.activeNormalTabIndex != current.activeNormalTabIndex ||
+          previous.activePrivateTabIndex != current.activePrivateTabIndex ||
+          previous.mode != current.mode,
       builder: (context, state) {
-        if (state.tabs.isEmpty) {
+        final isPrivateEmpty =
+            state.mode == BrowserMode.private && state.privateTabs.isEmpty;
+
+        if (isPrivateEmpty) {
+          return _PrivateEmptyStateView(
+            onCreatePrivateTab: () {
+              context.read<BrowserBloc>().add(
+                const BrowserNewTabRequested(isPrivate: true),
+              );
+            },
+          );
+        }
+
+        final allTabs = [...state.normalTabs, ...state.privateTabs];
+        if (allTabs.isEmpty) {
           return const SizedBox.shrink();
         }
+
+        final activeTab = state.activeTab;
+        final activeIndex = allTabs.indexWhere((t) => t.id == activeTab?.id);
+
         return IndexedStack(
-          index: state.activeTabIndex,
-          children: state.tabs.map((tab) {
+          index: activeIndex >= 0 ? activeIndex : 0,
+          children: allTabs.map((tab) {
             return Stack(
+              key: ValueKey('stack_${tab.id}'),
               children: [
                 Row(
                   children: [
@@ -163,6 +186,69 @@ class _BrowserLoadingBarState extends State<_BrowserLoadingBar>
                 );
               },
             ),
+    );
+  }
+}
+
+class _PrivateEmptyStateView extends StatelessWidget {
+  final VoidCallback onCreatePrivateTab;
+
+  const _PrivateEmptyStateView({required this.onCreatePrivateTab});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.extension<AppColorsExtension>()!;
+
+    return Container(
+      color: theme.scaffoldBackgroundColor,
+      padding: const EdgeInsets.all(32),
+      child: Center(
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: colors.accentActive.withValues(alpha: 0.05),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: colors.accentActive.withValues(alpha: 0.15),
+                    width: 1.5,
+                  ),
+                ),
+                child: Icon(
+                  Icons.visibility_off_rounded,
+                  color: colors.accentActive,
+                  size: 56,
+                ),
+              ),
+              const SizedBox(height: 28),
+              Text(
+                'Private Browsing',
+                style: theme.textTheme.headlineLarge?.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                constraints: const BoxConstraints(maxWidth: 420),
+                child: Text(
+                  'Pages you view in private tabs won\'t be saved in your history, cookie store, or search history after you close all of your private tabs. Bookmarks and downloads will still be kept.',
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: colors.textSecondary,
+                    height: 1.5,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 40),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

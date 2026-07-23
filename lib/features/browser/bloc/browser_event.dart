@@ -55,19 +55,19 @@ class BrowserNewTabRequested extends BrowserEvent {
 }
 
 class BrowserCloseTabRequested extends BrowserEvent {
-  final int index;
-  const BrowserCloseTabRequested(this.index);
+  final String tabId;
+  const BrowserCloseTabRequested(this.tabId);
 
   @override
-  List<Object?> get props => [index];
+  List<Object?> get props => [tabId];
 }
 
 class BrowserSwitchTabRequested extends BrowserEvent {
-  final int index;
-  const BrowserSwitchTabRequested(this.index);
+  final String tabId;
+  const BrowserSwitchTabRequested(this.tabId);
 
   @override
-  List<Object?> get props => [index];
+  List<Object?> get props => [tabId];
 }
 
 class BrowserCloseAllTabsRequested extends BrowserEvent {
@@ -142,4 +142,20 @@ class BrowserBookmarkToggled extends BrowserEvent {
 
   @override
   List<Object?> get props => [url, title];
+}
+
+class BrowserModeChanged extends BrowserEvent {
+  final BrowserMode mode;
+  const BrowserModeChanged(this.mode);
+
+  @override
+  List<Object?> get props => [mode];
+}
+
+class BrowserTabSwitcherOpened extends BrowserEvent {
+  const BrowserTabSwitcherOpened();
+}
+
+class BrowserTabSwitcherModeToggled extends BrowserEvent {
+  const BrowserTabSwitcherModeToggled();
 }

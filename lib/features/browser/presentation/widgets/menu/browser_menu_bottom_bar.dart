@@ -70,22 +70,10 @@ class BrowserMenuBottomBar extends StatelessWidget {
                 : colors.searchBarText,
             onTap: () {
               if (state.currentUrl.isNotEmpty) {
-                final wasBookmarked = state.isCurrentUrlBookmarked;
                 bloc.add(
                   BrowserBookmarkToggled(
                     url: state.currentUrl,
                     title: state.title,
-                  ),
-                );
-                ScaffoldMessenger.of(context).clearSnackBars();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      wasBookmarked
-                          ? l10n.bookmarkRemoved
-                          : l10n.pageBookmarked,
-                    ),
-                    duration: const Duration(seconds: 2),
                   ),
                 );
               }

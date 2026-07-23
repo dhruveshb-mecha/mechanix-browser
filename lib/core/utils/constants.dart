@@ -9,4 +9,5 @@ class AppConstants {
 
 class AppImages {
   static const String logo = 'assets/images/logo.png';
+  static const String incognitoImage = 'assets/images/incognito.png';
 }
