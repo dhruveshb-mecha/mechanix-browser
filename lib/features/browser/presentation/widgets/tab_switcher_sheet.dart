@@ -59,16 +59,23 @@ class TabSwitcherSheet extends StatelessWidget {
                     final tab = state.tabs[index];
                     final isActive = index == state.activeTabIndex;
 
-                    return TabCardItem(
-                      tab: tab,
-                      isActive: isActive,
-                      onTap: () {
-                        bloc.add(BrowserSwitchTabRequested(index));
-                        Navigator.pop(context);
-                      },
-                      onClose: () {
+                    return Dismissible(
+                      key: ValueKey(tab.id),
+                      direction: DismissDirection.horizontal,
+                      onDismissed: (direction) {
                         bloc.add(BrowserCloseTabRequested(index));
                       },
+                      child: TabCardItem(
+                        tab: tab,
+                        isActive: isActive,
+                        onTap: () {
+                          bloc.add(BrowserSwitchTabRequested(index));
+                          Navigator.pop(context);
+                        },
+                        onClose: () {
+                          bloc.add(BrowserCloseTabRequested(index));
+                        },
+                      ),
                     );
                   },
                 ),

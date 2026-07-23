@@ -3,16 +3,20 @@ import 'dart:async';
 import 'package:equatable/equatable.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:mechanix_browser/core/utils/app_logger.dart';
 import 'package:mechanix_browser/core/utils/constants.dart';
+import 'package:mechanix_browser/core/utils/helpers.dart';
+import 'package:mechanix_browser/features/browser/bloc/download/download_bloc.dart';
 import 'package:mechanix_browser/features/browser/data/models/bookmark.dart';
 import 'package:mechanix_browser/features/browser/data/models/browser_history.dart';
 import 'package:mechanix_browser/features/browser/data/models/browser_tab.dart';
 import 'package:mechanix_browser/features/browser/data/models/tab_entity.dart';
 import 'package:mechanix_browser/features/browser/data/repositories/bookmark_repository.dart';
 import 'package:mechanix_browser/features/browser/data/repositories/history_repository.dart';
-import 'package:mechanix_browser/features/browser/data/repositories/tab_repository.dart';
 // import 'package:mechanix_browser/features/browser/download/bloc/download_bloc.dart';
 // import 'package:mechanix_browser/features/browser/download/bloc/download_event.dart';
+import 'package:mechanix_browser/features/browser/data/repositories/history_repository_impl.dart';
+import 'package:mechanix_browser/features/browser/data/repositories/tab_repository.dart';
 import 'package:webview_cef/webview_cef.dart';
 
 part 'browser_event.dart';
@@ -20,6 +24,7 @@ part 'browser_state.dart';
 
 class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
   // final DownloadBloc? downloadBloc;
+  final DownloadBloc? downloadBloc;
 
   /// Repository managing local browser history persistency.
   HistoryRepository? _historyRepository;
@@ -41,8 +46,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
   }
 
   /// Initializes a new instance of [BrowserBloc] and registers the event handlers.
-  // BrowserBloc({this.downloadBloc}) : super(BrowserState.initial()) {
-  BrowserBloc() : super(BrowserState.initial()) {
+  BrowserBloc({this.downloadBloc}) : super(BrowserState.initial()) {
     on<BrowserInitialized>(_onInitialized);
     on<BrowserUrlLoadRequested>(_onUrlLoadRequested);
     on<BrowserGoBackRequested>(_onGoBack);
@@ -57,6 +61,8 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     on<BrowserCloseTabRequested>(_onCloseTab);
     on<BrowserSwitchTabRequested>(_onSwitchTab);
     on<BrowserCloseAllTabsRequested>(_onCloseAllTabs);
+    on<BrowserLoadStarted>(_onLoadStarted);
+    on<BrowserLoadEnded>(_onLoadEnded);
     on<BrowserBookmarkAdded>(_onBookmarkAdded);
     on<BrowserBookmarkRemoved>(_onBookmarkRemoved);
     on<BrowserBookmarkToggled>(_onBookmarkToggled);
@@ -106,6 +112,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
       currentUrl: initialUrl == AppConstants.homepageUrl ? '' : initialUrl,
       title: '',
       isHomePage: initialUrl == AppConstants.homepageUrl,
+      isLoading: false,
       isPrivate: isPrivate,
     );
   }
@@ -127,7 +134,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
           JavascriptChannel(
             name: 'Print',
             onMessageReceived: (JavascriptMessage message) {
-              debugPrint(message.message);
+              AppLogger.i(message.message);
               controller.sendJavaScriptChannelCallBack(
                 false,
                 "{'code':'200','message':'print succeed!'}",
@@ -141,70 +148,72 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
         controller.executeJavaScript("function abc(e){return 'abc:'+ e}");
         controller
             .evaluateJavascript("abc('test')")
-            .then((value) => debugPrint(value));
+            .then((value) => AppLogger.i(value));
       },
       onLoadStart: (c, url) {
-        debugPrint("onLoadStart => $url");
+        AppLogger.i("onLoadStart => $url");
+        add(BrowserLoadStarted(tabId: tabId));
       },
       onLoadEnd: (c, url) {
-        debugPrint("onLoadEnd => $url");
+        AppLogger.i("onLoadEnd => $url");
+        add(BrowserLoadEnded(tabId: tabId));
       },
-      // onBeforeDownload:
-      //     (
-      //       c,
-      //       downloadId,
-      //       url,
-      //       suggestedName,
-      //       contentDisposition,
-      //       mimeType,
-      //       totalBytes,
-      //     ) {
-      //       downloadBloc?.add(
-      //         DownloadBeforeStarted(
-      //           controller: c,
-      //           downloadId: downloadId,
-      //           url: url,
-      //           suggestedName: suggestedName,
-      //           contentDisposition: contentDisposition,
-      //           mimeType: mimeType,
-      //           totalBytes: totalBytes,
-      //         ),
-      //       );
-      //     },
-      // onDownloadUpdated:
-      //     (
-      //       c,
-      //       downloadId,
-      //       url,
-      //       fullPath,
-      //       receivedBytes,
-      //       totalBytes,
-      //       currentSpeed,
-      //       percentComplete,
-      //       isInProgress,
-      //       isComplete,
-      //       isCanceled,
-      //       isInterrupted,
-      //       interruptReason,
-      //     ) {
-      //       downloadBloc?.add(
-      //         DownloadUpdatedEvent(
-      //           controller: c,
-      //           downloadId: downloadId,
-      //           url: url,
-      //           fullPath: fullPath,
-      //           receivedBytes: receivedBytes,
-      //           totalBytes: totalBytes,
-      //           currentSpeed: currentSpeed,
-      //           percentComplete: percentComplete,
-      //           isInProgress: isInProgress,
-      //           isComplete: isComplete,
-      //           isCanceled: isCanceled,
-      //           isInterrupted: isInterrupted,
-      //           interruptReason: interruptReason,
-      //         ),
-      //       );
-      //     },
+      onBeforeDownload:
+          (
+            c,
+            downloadId,
+            url,
+            suggestedName,
+            contentDisposition,
+            mimeType,
+            totalBytes,
+          ) {
+            downloadBloc?.add(
+              DownloadBeforeStarted(
+                controller: c,
+                downloadId: downloadId,
+                url: url,
+                suggestedName: suggestedName,
+                contentDisposition: contentDisposition,
+                mimeType: mimeType,
+                totalBytes: totalBytes,
+              ),
+            );
+          },
+      onDownloadUpdated:
+          (
+            c,
+            downloadId,
+            url,
+            fullPath,
+            receivedBytes,
+            totalBytes,
+            currentSpeed,
+            percentComplete,
+            isInProgress,
+            isComplete,
+            isCanceled,
+            isInterrupted,
+            interruptReason,
+          ) {
+            downloadBloc?.add(
+              DownloadUpdatedEvent(
+                controller: c,
+                downloadId: downloadId,
+                url: url,
+                fullPath: fullPath,
+                receivedBytes: receivedBytes,
+                totalBytes: totalBytes,
+                currentSpeed: currentSpeed,
+                percentComplete: percentComplete,
+                isInProgress: isInProgress,
+                isComplete: isComplete,
+                isCanceled: isCanceled,
+                isInterrupted: isInterrupted,
+                interruptReason: interruptReason,
+              ),
+            );
+          },
     );
   }
 
@@ -216,10 +225,8 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     Emitter<BrowserState> emit,
   ) async {
     try {
-      _historyRepository = await HistoryRepository.create();
-      _bookmarkRepository = await BookmarkRepository.create(
-        store: _historyRepository!.store,
-      );
+      _historyRepository = HistoryRepositoryImpl();
+      _bookmarkRepository = BookmarkRepository();
       _tabRepository = await TabRepository.create(
         store: _historyRepository!.store,
       );
@@ -252,6 +259,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
 
       final favorites = _bookmarkRepository!.getFavorites();
       final bookmarks = _bookmarkRepository!.getBookmarks();
+      final history = _historyRepository!.getHistory();
 
       emit(
         state.copyWith(
@@ -260,11 +268,12 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
           activeTabIndex: activeTabIndex,
           favorites: favorites,
           bookmarks: bookmarks,
+          searchResults: history,
           isCurrentUrlBookmarked: false,
         ),
       );
     } catch (e) {
-      debugPrint("Webview initialization error: $e");
+      AppLogger.i("Webview initialization error: $e");
     }
   }
 
@@ -375,38 +384,42 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     BrowserNewTabRequested event,
     Emitter<BrowserState> emit,
   ) async {
-    if (!state.isInitialized) return;
+    try {
+      if (!state.isInitialized) return;
 
-    final oldTab = state.activeTab;
-    if (oldTab != null) {
-      if (oldTab.controller.value) {
-        await oldTab.controller.setClientFocus(false);
-        await oldTab.controller.wasHidden(true);
-        await oldTab.controller.executeJavaScript(
-          "document.dispatchEvent(new Event('visibilitychange'))",
-        );
+      final oldTab = state.activeTab;
+      if (oldTab != null) {
+        if (oldTab.controller.value) {
+          await oldTab.controller.setClientFocus(false);
+          await oldTab.controller.wasHidden(true);
+          await oldTab.controller.executeJavaScript(
+            "document.dispatchEvent(new Event('visibilitychange'))",
+          );
+        }
       }
+
+      final newTab = _createNewTab(
+        event.initialUrl ?? AppConstants.homepageUrl,
+        isPrivate: event.isPrivate,
+      );
+      final updatedTabs = List<BrowserTab>.from(state.tabs)..add(newTab);
+      final newActiveIndex = updatedTabs.length - 1;
+
+      emit(state.copyWith(tabs: updatedTabs, activeTabIndex: newActiveIndex));
+
+      _updateCurrentPageBookmarkStatus(emit, targetUrl: newTab.currentUrl);
+      _persistTabs();
+
+      newTab.controller.ready.then((_) async {
+        final currentActiveTab = state.activeTab;
+        if (currentActiveTab != null && currentActiveTab.id == newTab.id) {
+          await newTab.controller.setClientFocus(true);
+          await newTab.controller.wasHidden(false);
+        }
+      });
+    } catch (e, stackTrace) {
+      AppLogger.e("Error opening new tab", error: e, stack: stackTrace);
     }
-
-    final newTab = _createNewTab(
-      event.initialUrl ?? AppConstants.homepageUrl,
-      isPrivate: event.isPrivate,
-    );
-    final updatedTabs = List<BrowserTab>.from(state.tabs)..add(newTab);
-    final newActiveIndex = updatedTabs.length - 1;
-
-    emit(state.copyWith(tabs: updatedTabs, activeTabIndex: newActiveIndex));
-
-    _updateCurrentPageBookmarkStatus(emit, targetUrl: newTab.currentUrl);
-    _persistTabs();
-
-    newTab.controller.ready.then((_) async {
-      final currentActiveTab = state.activeTab;
-      if (currentActiveTab != null && currentActiveTab.id == newTab.id) {
-        await newTab.controller.setClientFocus(true);
-        await newTab.controller.wasHidden(false);
-      }
-    });
   }
 
   /// Handler to close a specific browser tab specified by index.
@@ -414,59 +427,63 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     BrowserCloseTabRequested event,
     Emitter<BrowserState> emit,
   ) async {
-    final index = event.index;
-    if (index < 0 || index >= state.tabs.length) return;
+    try {
+      final index = event.index;
+      if (index < 0 || index >= state.tabs.length) return;
 
-    /// If only one tab remains, it resets it to the homepage instead of closing.
-    if (state.tabs.length == 1) {
-      final activeTab = state.tabs[index];
-      final updatedTab = activeTab.copyWith(
-        isHomePage: true,
-        currentUrl: '',
-        title: '',
-      );
-      emit(state.copyWith(tabs: [updatedTab], activeTabIndex: 0));
-      _updateCurrentPageBookmarkStatus(emit, targetUrl: '');
-      if (activeTab.controller.value) {
-        await activeTab.controller.loadUrl(AppConstants.homepageUrl);
-      }
-      return;
-    }
-
-    /// more than one tab find that tab and dispose it controller
-    final tabToClose = state.tabs[index];
-    await tabToClose.controller.dispose();
-
-    final updatedTabs = List<BrowserTab>.from(state.tabs)..removeAt(index);
-
-    /// find new active tab
-    int newActiveIndex = state.activeTabIndex;
-    if (index == state.activeTabIndex) {
-      if (newActiveIndex >= updatedTabs.length) {
-        newActiveIndex = updatedTabs.length - 1;
-      }
-    } else if (index < state.activeTabIndex) {
-      newActiveIndex = state.activeTabIndex - 1;
-    }
-
-    emit(state.copyWith(tabs: updatedTabs, activeTabIndex: newActiveIndex));
-
-    final newActiveTab = updatedTabs[newActiveIndex];
-    _updateCurrentPageBookmarkStatus(emit, targetUrl: newActiveTab.currentUrl);
-    _persistTabs();
-
-    /// focus new tab when new tab ready
-    if (newActiveTab.controller.value) {
-      await newActiveTab.controller.setClientFocus(true);
-    } else {
-      newActiveTab.controller.ready.then((_) async {
-        final currentActiveTab = state.activeTab;
-        if (currentActiveTab != null &&
-            currentActiveTab.id == newActiveTab.id) {
-          await newActiveTab.controller.setClientFocus(true);
-          await newActiveTab.controller.wasHidden(false);
+      /// If only one tab remains, it resets it to the homepage instead of closing.
+      if (state.tabs.length == 1) {
+        final activeTab = state.tabs[index];
+        final updatedTab = activeTab.copyWith(
+          isHomePage: true,
+          currentUrl: '',
+          title: '',
+        );
+        emit(state.copyWith(tabs: [updatedTab], activeTabIndex: 0));
+        _updateCurrentPageBookmarkStatus(emit, targetUrl: '');
+        if (activeTab.controller.value) {
+          await activeTab.controller.loadUrl(AppConstants.homepageUrl);
         }
-      });
+        return;
+      }
+
+      /// more than one tab find that tab and dispose it controller
+      final tabToClose = state.tabs[index];
+      await tabToClose.controller.dispose();
+
+      final updatedTabs = List<BrowserTab>.from(state.tabs)..removeAt(index);
+
+      /// find new active tab
+      int newActiveIndex = state.activeTabIndex;
+      if (index == state.activeTabIndex) {
+        if (newActiveIndex >= updatedTabs.length) {
+          newActiveIndex = updatedTabs.length - 1;
+        }
+      } else if (index < state.activeTabIndex) {
+        newActiveIndex = state.activeTabIndex - 1;
+      }
+
+      emit(state.copyWith(tabs: updatedTabs, activeTabIndex: newActiveIndex));
+
+      final newActiveTab = updatedTabs[newActiveIndex];
+      _updateCurrentPageBookmarkStatus(emit, targetUrl: newActiveTab.currentUrl);
+      _persistTabs();
+
+      /// focus new tab when new tab ready
+      if (newActiveTab.controller.value) {
+        await newActiveTab.controller.setClientFocus(true);
+      } else {
+        newActiveTab.controller.ready.then((_) async {
+          final currentActiveTab = state.activeTab;
+          if (currentActiveTab != null &&
+              currentActiveTab.id == newActiveTab.id) {
+            await newActiveTab.controller.setClientFocus(true);
+            await newActiveTab.controller.wasHidden(false);
+          }
+        });
+      }
+    } catch (e, stackTrace) {
+      AppLogger.e("Error closing tab", error: e, stack: stackTrace);
     }
   }
 
@@ -475,44 +492,48 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     BrowserSwitchTabRequested event,
     Emitter<BrowserState> emit,
   ) async {
-    final index = event.index;
-    if (index < 0 || index >= state.tabs.length) return;
-    if (state.activeTabIndex == index) return;
+    try {
+      final index = event.index;
+      if (index < 0 || index >= state.tabs.length) return;
+      if (state.activeTabIndex == index) return;
 
-    final oldTab = state.activeTab;
-    final newTab = state.tabs[index];
+      final oldTab = state.activeTab;
+      final newTab = state.tabs[index];
 
-    if (oldTab != null) {
-      if (oldTab.controller.value) {
-        /// old tab loose focus
-        await oldTab.controller.setClientFocus(false);
-        await oldTab.controller.wasHidden(true);
-        await oldTab.controller.executeJavaScript(
-          "document.dispatchEvent(new Event('visibilitychange'))",
-        );
-      }
-    }
-
-    emit(state.copyWith(activeTabIndex: index));
-    _updateCurrentPageBookmarkStatus(emit, targetUrl: newTab.currentUrl);
-    // _persistTabs();
-
-    /// new tab get focus
-    if (newTab.controller.value) {
-      await newTab.controller.setClientFocus(true);
-      await newTab.controller.wasHidden(false);
-    } else {
-      newTab.controller.initialize(
-        newTab.isHomePage ? AppConstants.homepageUrl : newTab.currentUrl,
-        isPrivate: newTab.isPrivate,
-      );
-      newTab.controller.ready.then((_) async {
-        final currentActiveTab = state.activeTab;
-        if (currentActiveTab != null && currentActiveTab.id == newTab.id) {
-          await newTab.controller.setClientFocus(true);
-          await newTab.controller.wasHidden(false);
+      if (oldTab != null) {
+        if (oldTab.controller.value) {
+          /// old tab loose focus
+          await oldTab.controller.setClientFocus(false);
+          await oldTab.controller.wasHidden(true);
+          await oldTab.controller.executeJavaScript(
+            "document.dispatchEvent(new Event('visibilitychange'))",
+          );
         }
-      });
+      }
+
+      emit(state.copyWith(activeTabIndex: index));
+      _updateCurrentPageBookmarkStatus(emit, targetUrl: newTab.currentUrl);
+      // _persistTabs();
+
+      /// new tab get focus
+      if (newTab.controller.value) {
+        await newTab.controller.setClientFocus(true);
+        await newTab.controller.wasHidden(false);
+      } else {
+        newTab.controller.initialize(
+          newTab.isHomePage ? AppConstants.homepageUrl : newTab.currentUrl,
+          isPrivate: newTab.isPrivate,
+        );
+        newTab.controller.ready.then((_) async {
+          final currentActiveTab = state.activeTab;
+          if (currentActiveTab != null && currentActiveTab.id == newTab.id) {
+            await newTab.controller.setClientFocus(true);
+            await newTab.controller.wasHidden(false);
+          }
+        });
+      }
+    } catch (e, stackTrace) {
+      AppLogger.e("Error switching tab", error: e, stack: stackTrace);
     }
   }
 
@@ -521,24 +542,28 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     BrowserCloseAllTabsRequested event,
     Emitter<BrowserState> emit,
   ) async {
-    print("Closing all tabs and resetting to homepage.");
-    for (final tab in state.tabs) {
-      await tab.controller.dispose();
-    }
-
-    final firstTab = _createNewTab(AppConstants.homepageUrl);
-
-    emit(state.copyWith(tabs: [firstTab], activeTabIndex: 0));
-    _updateCurrentPageBookmarkStatus(emit, targetUrl: '');
-    // _persistTabs();
-
-    firstTab.controller.ready.then((_) async {
-      final currentActiveTab = state.activeTab;
-      if (currentActiveTab != null && currentActiveTab.id == firstTab.id) {
-        await firstTab.controller.setClientFocus(true);
-        await firstTab.controller.wasHidden(false);
+    try {
+      print("Closing all tabs and resetting to homepage.");
+      for (final tab in state.tabs) {
+        await tab.controller.dispose();
       }
-    });
+
+      final firstTab = _createNewTab(AppConstants.homepageUrl);
+
+      emit(state.copyWith(tabs: [firstTab], activeTabIndex: 0));
+      _updateCurrentPageBookmarkStatus(emit, targetUrl: '');
+      // _persistTabs();
+
+      firstTab.controller.ready.then((_) async {
+        final currentActiveTab = state.activeTab;
+        if (currentActiveTab != null && currentActiveTab.id == firstTab.id) {
+          await firstTab.controller.setClientFocus(true);
+          await firstTab.controller.wasHidden(false);
+        }
+      });
+    } catch (e, stackTrace) {
+      AppLogger.e("Error closing tabs", error: e, stack: stackTrace);
+    }
   }
 
   /// Helper to persist current tabs state.
@@ -568,37 +593,41 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     BrowserUrlLoadRequested event,
     Emitter<BrowserState> emit,
   ) async {
-    if (!state.isInitialized || state.activeTab == null) return;
+    try {
+      if (!state.isInitialized || state.activeTab == null) return;
 
-    String finalUrl = event.url.trim();
-    if (finalUrl.isEmpty) return;
+      String finalUrl = event.url.trim();
+      if (finalUrl.isEmpty) return;
 
-    final isUri = Uri.tryParse(event.url.trim())?.isAbsolute;
+      final isUri = Uri.tryParse(event.url.trim())?.isAbsolute;
 
-    /// check uri is correct or search
-    if (!isUri!) {
-      if (finalUrl.contains('.') && !finalUrl.contains(' ')) {
-        finalUrl = '${AppConstants.defaultScheme}$finalUrl';
-      } else {
-        finalUrl =
-            '${AppConstants.searchUrlPrefix}${Uri.encodeComponent(finalUrl)}';
+      /// check uri is correct or search
+      if (!isUri!) {
+        if (finalUrl.contains('.') && !finalUrl.contains(' ')) {
+          finalUrl = '${AppConstants.defaultScheme}$finalUrl';
+        } else {
+          finalUrl =
+              '${AppConstants.searchUrlPrefix}${Uri.encodeComponent(finalUrl)}';
+        }
       }
-    }
 
-    final activeTab = state.activeTab!;
-    final updatedTab = activeTab.copyWith(
-      isHomePage: false,
-      currentUrl: finalUrl,
-    );
-    final updatedTabs = List<BrowserTab>.from(state.tabs);
-    updatedTabs[state.activeTabIndex] = updatedTab;
+      final activeTab = state.activeTab!;
+      final updatedTab = activeTab.copyWith(
+        isHomePage: false,
+        currentUrl: finalUrl,
+      );
+      final updatedTabs = List<BrowserTab>.from(state.tabs);
+      updatedTabs[state.activeTabIndex] = updatedTab;
 
-    emit(state.copyWith(tabs: updatedTabs, searchResults: []));
-    _updateCurrentPageBookmarkStatus(emit, targetUrl: finalUrl);
-    // _persistTabs();
+      emit(state.copyWith(tabs: updatedTabs, searchResults: []));
+      _updateCurrentPageBookmarkStatus(emit, targetUrl: finalUrl);
+      // _persistTabs();
 
-    if (activeTab.controller.value) {
-      await activeTab.controller.loadUrl(finalUrl);
+      if (activeTab.controller.value) {
+        await activeTab.controller.loadUrl(finalUrl);
+      }
+    } catch (e, stackTrace) {
+      AppLogger.e("Error loading URL", error: e, stack: stackTrace);
     }
   }
 
@@ -606,9 +635,13 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     BrowserGoBackRequested event,
     Emitter<BrowserState> emit,
   ) async {
-    final activeTab = state.activeTab;
-    if (activeTab != null && activeTab.controller.value) {
-      await activeTab.controller.goBack();
+    try {
+      final activeTab = state.activeTab;
+      if (activeTab != null && activeTab.controller.value) {
+        await activeTab.controller.goBack();
+      }
+    } catch (e, stackTrace) {
+      AppLogger.e("Error going back", error: e, stack: stackTrace);
     }
   }
 
@@ -616,9 +649,13 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     BrowserGoForwardRequested event,
     Emitter<BrowserState> emit,
   ) async {
-    final activeTab = state.activeTab;
-    if (activeTab != null && activeTab.controller.value) {
-      await activeTab.controller.goForward();
+    try {
+      final activeTab = state.activeTab;
+      if (activeTab != null && activeTab.controller.value) {
+        await activeTab.controller.goForward();
+      }
+    } catch (e, stackTrace) {
+      AppLogger.e("Error going forward", error: e, stack: stackTrace);
     }
   }
 
@@ -626,9 +663,13 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     BrowserReloadRequested event,
     Emitter<BrowserState> emit,
   ) async {
-    final activeTab = state.activeTab;
-    if (activeTab != null && activeTab.controller.value) {
-      await activeTab.controller.reload();
+    try {
+      final activeTab = state.activeTab;
+      if (activeTab != null && activeTab.controller.value) {
+        await activeTab.controller.reload();
+      }
+    } catch (e, stackTrace) {
+      AppLogger.e("Error reloading tab", error: e, stack: stackTrace);
     }
   }
 
@@ -636,9 +677,13 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     BrowserDevToolsRequested event,
     Emitter<BrowserState> emit,
   ) async {
-    final activeTab = state.activeTab;
-    if (activeTab != null && activeTab.controller.value) {
-      await activeTab.controller.openDevTools();
+    try {
+      final activeTab = state.activeTab;
+      if (activeTab != null && activeTab.controller.value) {
+        await activeTab.controller.openDevTools();
+      }
+    } catch (e, stackTrace) {
+      AppLogger.e("Error opening dev tools", error: e, stack: stackTrace);
     }
   }
 
@@ -646,16 +691,20 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     BrowserGoHomeRequested event,
     Emitter<BrowserState> emit,
   ) async {
-    final activeTab = state.activeTab;
-    if (activeTab != null) {
-      final updatedTab = activeTab.copyWith(isHomePage: true, currentUrl: '');
-      final updatedTabs = List<BrowserTab>.from(state.tabs);
-      updatedTabs[state.activeTabIndex] = updatedTab;
-      emit(state.copyWith(tabs: updatedTabs));
-      _updateCurrentPageBookmarkStatus(emit, targetUrl: '');
-      if (activeTab.controller.value) {
-        await activeTab.controller.loadUrl(AppConstants.homepageUrl);
+    try {
+      final activeTab = state.activeTab;
+      if (activeTab != null) {
+        final updatedTab = activeTab.copyWith(isHomePage: true, currentUrl: '');
+        final updatedTabs = List<BrowserTab>.from(state.tabs);
+        updatedTabs[state.activeTabIndex] = updatedTab;
+        emit(state.copyWith(tabs: updatedTabs));
+        _updateCurrentPageBookmarkStatus(emit, targetUrl: '');
+        if (activeTab.controller.value) {
+          await activeTab.controller.loadUrl(AppConstants.homepageUrl);
+        }
       }
+    } catch (e, stackTrace) {
+      AppLogger.e("Error navigating home", error: e, stack: stackTrace);
     }
   }
 
@@ -682,6 +731,56 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
       );
     }
     // _persistTabs();
+
+    // Save URL changes to browser history
+    if (_historyRepository != null && !isHome) {
+      final parsedUri = Uri.tryParse(event.url.trim());
+      if (parsedUri == null || !parsedUri.isAbsolute) {
+        AppLogger.i(
+          'Skipping history save for invalid/incorrect URL: ${event.url}',
+        );
+        return;
+      }
+      try {
+        final history = _historyRepository!.getHistory();
+        final now = DateTime.now().millisecondsSinceEpoch;
+        BrowserHistory? entryToSave;
+
+        if (history.isNotEmpty) {
+          final latest = history.first;
+          final elapsed = now - latest.timestamp;
+          if (elapsed < 1500) {
+            AppLogger.i(
+              'Redirect/rapid navigation detected (elapsed: ${elapsed}ms). Overwriting latest history entry from ${latest.url} to ${event.url}',
+            );
+            latest.url = event.url;
+            latest.timestamp = now;
+            entryToSave = latest;
+          }
+        }
+
+        if (entryToSave == null) {
+          AppLogger.i(
+            'Preparing to save new history entry for URL: ${event.url}',
+          );
+          entryToSave = BrowserHistory(
+            url: event.url,
+            title: '',
+            timestamp: now,
+          );
+        }
+
+        AppLogger.i(
+          'Saving history entry to database: url=${entryToSave.url}, title=${entryToSave.title}',
+        );
+        _historyRepository!.saveHistory(entryToSave);
+        AppLogger.i(
+          'Successfully saved history entry: url=${entryToSave.url}, title=${entryToSave.title}',
+        );
+      } catch (e, stackTrace) {
+        AppLogger.e('Error saving history URL', error: e, stack: stackTrace);
+      }
+    }
   }
 
   /// Handler triggered when a tab's document title changes.
@@ -695,6 +794,65 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     updatedTabs[index] = updatedTab;
 
     emit(state.copyWith(tabs: updatedTabs));
+
+    // Update the corresponding history entry's title if history is enabled and title is non-empty
+    if (_historyRepository != null && event.title.isNotEmpty) {
+      try {
+        final history = _historyRepository!.getHistory();
+        if (history.isNotEmpty) {
+          final latest = history.first;
+          // Normalize URLs to remove trailing slashes for precise comparison
+          final latestUrlNorm = normalizeUrl(latest.url);
+          final tabUrlNorm = normalizeUrl(updatedTab.currentUrl);
+
+          // Update the history title if the latest entry's URL matches the current tab URL
+          if (latestUrlNorm.toLowerCase() == tabUrlNorm.toLowerCase()) {
+            latest.title = event.title;
+            AppLogger.i(
+              'Preparing to update title for history entry: url=${latest.url}, new title=${latest.title}',
+            );
+            _historyRepository!.saveHistory(latest);
+            AppLogger.i(
+              'Successfully updated title for history entry: url=${latest.url}, title=${latest.title}',
+            );
+
+            final updatedHistory = _historyRepository!.getHistory();
+            emit(state.copyWith(searchResults: updatedHistory));
+          }
+        }
+      } catch (e, stackTrace) {
+        AppLogger.e(
+          'Error updating history title',
+          error: e,
+          stack: stackTrace,
+        );
+      }
+    }
+  }
+
+  void _onLoadStarted(BrowserLoadStarted event, Emitter<BrowserState> emit) {
+    final index = state.tabs.indexWhere((t) => t.id == event.tabId);
+    if (index == -1) return;
+
+    final updatedTab = state.tabs[index].copyWith(isLoading: true);
+
+    final updatedTabs = List<BrowserTab>.from(state.tabs);
+    updatedTabs[index] = updatedTab;
+
+    emit(state.copyWith(tabs: updatedTabs));
+  }
+
+  void _onLoadEnded(BrowserLoadEnded event, Emitter<BrowserState> emit) {
+    final index = state.tabs.indexWhere((t) => t.id == event.tabId);
+    if (index == -1) return;
+
+    final updatedTab = state.tabs[index].copyWith(isLoading: false);
+
+    final updatedTabs = List<BrowserTab>.from(state.tabs);
+    updatedTabs[index] = updatedTab;
+
+    emit(state.copyWith(tabs: updatedTabs));
+
     _persistTabs();
   }
 
@@ -705,6 +863,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
   ) async {
     if (_historyRepository != null) {
       _historyRepository!.clearHistory();
+      emit(state.copyWith(searchResults: const []));
     }
   }
 

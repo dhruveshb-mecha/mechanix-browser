@@ -106,8 +106,11 @@ class AppColorsExtension extends ThemeExtension<AppColorsExtension> {
   AppColorsExtension lerp(ThemeExtension<AppColorsExtension>? other, double t) {
     if (other is! AppColorsExtension) return this;
     return AppColorsExtension(
-      searchBarBackground:
-          Color.lerp(searchBarBackground, other.searchBarBackground, t)!,
+      searchBarBackground: Color.lerp(
+        searchBarBackground,
+        other.searchBarBackground,
+        t,
+      )!,
       searchBarBorder: Color.lerp(searchBarBorder, other.searchBarBorder, t)!,
       searchBarHint: Color.lerp(searchBarHint, other.searchBarHint, t)!,
       searchBarText: Color.lerp(searchBarText, other.searchBarText, t)!,
@@ -118,23 +121,47 @@ class AppColorsExtension extends ThemeExtension<AppColorsExtension> {
       panelBackground: Color.lerp(panelBackground, other.panelBackground, t)!,
       panelBorder: Color.lerp(panelBorder, other.panelBorder, t)!,
       dragHandle: Color.lerp(dragHandle, other.dragHandle, t)!,
-      closeButtonBackground:
-          Color.lerp(closeButtonBackground, other.closeButtonBackground, t)!,
+      closeButtonBackground: Color.lerp(
+        closeButtonBackground,
+        other.closeButtonBackground,
+        t,
+      )!,
       shortcutBorder: Color.lerp(shortcutBorder, other.shortcutBorder, t)!,
-      shortcutForeground:
-          Color.lerp(shortcutForeground, other.shortcutForeground, t)!,
-      shortcutHoverBorder:
-          Color.lerp(shortcutHoverBorder, other.shortcutHoverBorder, t)!,
+      shortcutForeground: Color.lerp(
+        shortcutForeground,
+        other.shortcutForeground,
+        t,
+      )!,
+      shortcutHoverBorder: Color.lerp(
+        shortcutHoverBorder,
+        other.shortcutHoverBorder,
+        t,
+      )!,
       shortcutHoverBackground: Color.lerp(
-          shortcutHoverBackground, other.shortcutHoverBackground, t)!,
+        shortcutHoverBackground,
+        other.shortcutHoverBackground,
+        t,
+      )!,
       shortcutHoverForeground: Color.lerp(
-          shortcutHoverForeground, other.shortcutHoverForeground, t)!,
-      popupBottomBackground:
-          Color.lerp(popupBottomBackground, other.popupBottomBackground, t)!,
+        shortcutHoverForeground,
+        other.shortcutHoverForeground,
+        t,
+      )!,
+      popupBottomBackground: Color.lerp(
+        popupBottomBackground,
+        other.popupBottomBackground,
+        t,
+      )!,
       popupBottomButtonBackground: Color.lerp(
-          popupBottomButtonBackground, other.popupBottomButtonBackground, t)!,
-      popupBarrierColor:
-          Color.lerp(popupBarrierColor, other.popupBarrierColor, t)!,
+        popupBottomButtonBackground,
+        other.popupBottomButtonBackground,
+        t,
+      )!,
+      popupBarrierColor: Color.lerp(
+        popupBarrierColor,
+        other.popupBarrierColor,
+        t,
+      )!,
       accentActive: Color.lerp(accentActive, other.accentActive, t)!,
     );
   }
@@ -211,13 +238,8 @@ class AppTheme {
       visualDensity: VisualDensity(vertical: -1),
     ),
     checkboxTheme: CheckboxThemeData(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(6),
-      ),
-      side: const BorderSide(
-        color: Colors.white30,
-        width: 1.5,
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+      side: const BorderSide(color: Colors.white30, width: 1.5),
     ),
     textTheme: const TextTheme(
       headlineLarge: TextStyle(
@@ -270,9 +292,7 @@ class AppTheme {
         color: Color(0xFF8E8E93),
       ),
     ),
-    extensions: [
-      AppColorsExtension.dark,
-    ],
+    extensions: [AppColorsExtension.dark],
   );
 
   static final light = ThemeData.light(useMaterial3: true).copyWith(

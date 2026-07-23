@@ -1,9 +1,6 @@
 import 'package:objectbox/objectbox.dart';
 
-enum BookmarkType {
-  bookmark,
-  favorite,
-}
+enum BookmarkType { bookmark, favorite }
 
 @Entity()
 class Bookmark {

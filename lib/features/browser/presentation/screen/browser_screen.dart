@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mechanix_browser/features/browser/bloc/browser_bloc.dart';
+import 'package:mechanix_browser/features/browser/bloc/download/download_notification_toast.dart';
 import 'package:mechanix_browser/features/browser/presentation/widgets/browser_bottom_bar.dart';
 import 'package:mechanix_browser/features/browser/presentation/widgets/webview_body.dart';
 
@@ -35,6 +36,7 @@ class _BrowserScreenState extends State<BrowserScreen> {
                   const BrowserBottomBar(),
                 ],
               ),
+              const DownloadNotificationOverlay(),
             ],
           ),
         );

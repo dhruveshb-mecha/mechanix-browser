@@ -153,8 +153,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get noDownloadsYet => 'No downloads yet';
 
   @override
-  String get noDownloadsDescription =>
-      'Files downloaded from web pages will appear here.';
+  String get noDownloadsDescription => 'Files downloaded from web pages will appear here.';
 
   @override
   String get openFolder => 'Open Folder';
@@ -184,4 +183,22 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get downloadingFiles => 'Downloading files...';
+
+  @override
+  String get clearAll => 'Clear all';
+
+  @override
+  String get delete => 'Delete';
+
+  @override
+  String get today => 'Today';
+
+  @override
+  String get yesterday => 'Yesterday';
+
+  @override
+  String get thisWeek => 'This Week';
+
+  @override
+  String get thisMonth => 'This Month';
 }

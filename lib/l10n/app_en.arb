@@ -242,6 +242,30 @@
   "downloadingFiles": "Downloading files...",
   "@downloadingFiles": {
     "description": "Toast text for downloading multiple files"
+  },
+  "clearAll": "Clear all",
+  "@clearAll": {
+    "description": "Button to clear all history entries"
+  },
+  "delete": "Delete",
+  "@delete": {
+    "description": "Tooltip for delete button"
+  },
+  "today": "Today",
+  "@today": {
+    "description": "History group title for today"
+  },
+  "yesterday": "Yesterday",
+  "@yesterday": {
+    "description": "History group title for yesterday"
+  },
+  "thisWeek": "This Week",
+  "@thisWeek": {
+    "description": "History group title for this week"
+  },
+  "thisMonth": "This Month",
+  "@thisMonth": {
+    "description": "History group title for this month"
   }
 }
 

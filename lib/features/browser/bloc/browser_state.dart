@@ -20,18 +20,18 @@ class BrowserState extends Equatable {
   });
 
   const BrowserState.initial()
-      : isInitialized = false,
-        tabs = const [],
-        activeTabIndex = 0,
-        searchResults = const [],
-        favorites = const [],
-        bookmarks = const [],
-        isCurrentUrlBookmarked = false;
+    : isInitialized = false,
+      tabs = const [],
+      activeTabIndex = 0,
+      searchResults = const [],
+      favorites = const [],
+      bookmarks = const [],
+      isCurrentUrlBookmarked = false;
 
   BrowserTab? get activeTab =>
       tabs.isNotEmpty && activeTabIndex >= 0 && activeTabIndex < tabs.length
-          ? tabs[activeTabIndex]
-          : null;
+      ? tabs[activeTabIndex]
+      : null;
   bool get isHomePage => activeTab?.isHomePage ?? true;
   String get currentUrl => activeTab?.currentUrl ?? '';
   String get title => activeTab?.title ?? '';
@@ -59,12 +59,12 @@ class BrowserState extends Equatable {
 
   @override
   List<Object?> get props => [
-        isInitialized,
-        tabs,
-        activeTabIndex,
-        searchResults,
-        favorites,
-        bookmarks,
-        isCurrentUrlBookmarked,
-      ];
+    isInitialized,
+    tabs,
+    activeTabIndex,
+    searchResults,
+    favorites,
+    bookmarks,
+    isCurrentUrlBookmarked,
+  ];
 }

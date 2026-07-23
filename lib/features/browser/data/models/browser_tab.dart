@@ -7,7 +7,7 @@ class BrowserTab extends Equatable {
   final String currentUrl;
   final String title;
   final bool isHomePage;
-
+  final bool isLoading;
   final bool isPrivate;
 
   const BrowserTab({
@@ -16,6 +16,7 @@ class BrowserTab extends Equatable {
     required this.currentUrl,
     required this.title,
     required this.isHomePage,
+    required this.isLoading,
     this.isPrivate = false,
   });
 
@@ -25,6 +26,7 @@ class BrowserTab extends Equatable {
     String? currentUrl,
     String? title,
     bool? isHomePage,
+    bool? isLoading,
     bool? isPrivate,
   }) {
     return BrowserTab(
@@ -33,10 +35,19 @@ class BrowserTab extends Equatable {
       currentUrl: currentUrl ?? this.currentUrl,
       title: title ?? this.title,
       isHomePage: isHomePage ?? this.isHomePage,
+      isLoading: isLoading ?? this.isLoading,
       isPrivate: isPrivate ?? this.isPrivate,
     );
   }
 
   @override
-  List<Object?> get props => [id, controller, currentUrl, title, isHomePage, isPrivate];
+  List<Object?> get props => [
+    id,
+    controller,
+    currentUrl,
+    title,
+    isHomePage,
+    isLoading,
+    isPrivate,
+  ];
 }

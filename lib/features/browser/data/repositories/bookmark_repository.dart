@@ -1,7 +1,5 @@
-import 'dart:io';
-
-import 'package:flutter/foundation.dart';
-import 'package:mechanix_browser/core/utils/constants.dart';
+import 'package:mechanix_browser/core/services/objectbox_service.dart';
+import 'package:mechanix_browser/core/utils/app_logger.dart';
 import 'package:mechanix_browser/features/browser/data/models/bookmark.dart';
 import 'package:mechanix_browser/objectbox.g.dart';
 
@@ -11,33 +9,8 @@ class BookmarkRepository {
   final Store store;
   late final Box<Bookmark> bookmarkBox;
 
-  BookmarkRepository._(this.store) {
-    bookmarkBox = store.box<Bookmark>();
-  }
-
-  static Future<BookmarkRepository> create({Store? store}) async {
-    try {
-      if (store != null) {
-        return BookmarkRepository._(store);
-      }
-
-      final home = Platform.environment['HOME'];
-      if (home == null || home.isEmpty) {
-        throw Exception('HOME environment variable is not set');
-      }
-
-      final storeDir = Directory('$home/${AppConstants.dbPath}');
-      if (!await storeDir.exists()) {
-        await storeDir.create(recursive: true);
-      }
-
-      final newStore = await openStore(directory: storeDir.path);
-      return BookmarkRepository._(newStore);
-    } catch (e, stackTrace) {
-      debugPrint('Unable to initialize bookmark storage: $e');
-      debugPrint(stackTrace.toString());
-      rethrow;
-    }
+  BookmarkRepository({Store? store}) : store = store ?? ObjectBoxService.store {
+    bookmarkBox = this.store.box<Bookmark>();
   }
 
   /// Adds a new bookmark/favorite or updates an existing entry with the same URL and type.
@@ -60,8 +33,8 @@ class BookmarkRepository {
 
       return bookmarkBox.put(bookmark);
     } catch (e, stackTrace) {
-      debugPrint('Unable to save bookmark: $e');
-      debugPrint(stackTrace.toString());
+      AppLogger.i('Unable to save bookmark: $e');
+      AppLogger.i(stackTrace.toString());
       rethrow;
     }
   }
@@ -71,8 +44,8 @@ class BookmarkRepository {
     try {
       return bookmarkBox.remove(id);
     } catch (e, stackTrace) {
-      debugPrint('Unable to remove bookmark by id ($id): $e');
-      debugPrint(stackTrace.toString());
+      AppLogger.i('Unable to remove bookmark by id ($id): $e');
+      AppLogger.i(stackTrace.toString());
       return false;
     }
   }
@@ -93,10 +66,10 @@ class BookmarkRepository {
       if (ids.isEmpty) return false;
       return bookmarkBox.removeMany(ids) == ids.length;
     } catch (e, stackTrace) {
-      debugPrint(
+      AppLogger.i(
         'Unable to remove bookmark by url ($url) and type ($type): $e',
       );
-      debugPrint(stackTrace.toString());
+      AppLogger.i(stackTrace.toString());
       return false;
     }
   }
@@ -120,8 +93,8 @@ class BookmarkRepository {
       query.close();
       return count > 0;
     } catch (e, stackTrace) {
-      debugPrint('Unable to check if url is saved: $e');
-      debugPrint(stackTrace.toString());
+      AppLogger.i('Unable to check if url is saved: $e');
+      AppLogger.i(stackTrace.toString());
       return false;
     }
   }
@@ -176,13 +149,13 @@ class BookmarkRepository {
       query.close();
       return results;
     } catch (e, stackTrace) {
-      debugPrint('Unable to query bookmarks: $e');
-      debugPrint(stackTrace.toString());
+      AppLogger.i('Unable to query bookmarks: $e');
+      AppLogger.i(stackTrace.toString());
       return [];
     }
   }
 
   void close() {
-    store.close();
+    // No-op as the store lifecycle is managed by ObjectBoxService
   }
 }
