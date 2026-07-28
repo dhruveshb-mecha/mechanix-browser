@@ -33,9 +33,26 @@ class _BrowserScreenState extends State<BrowserScreen> {
                         ? const BrowserWebviewBody()
                         : const Center(child: CircularProgressIndicator()),
                   ),
-                  const BrowserBottomBar(),
                 ],
               ),
+
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: AnimatedSlide(
+                  offset: state.isBottomBarVisible
+                      ? Offset.zero
+                      : const Offset(0, 1),
+                  duration: const Duration(milliseconds: 250),
+                  curve: Curves.easeInOut,
+                  child: const SizedBox(
+                    height: 72.0,
+                    child: BrowserBottomBar(),
+                  ),
+                ),
+              ),
+
               const DownloadNotificationOverlay(),
             ],
           ),

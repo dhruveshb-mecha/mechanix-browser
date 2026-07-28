@@ -232,7 +232,6 @@ class _DownloadActionButton extends StatelessWidget {
       icon: Icon(icon, size: 20),
       color: colors.textSecondary,
       tooltip: tooltip,
-      visualDensity: VisualDensity.compact,
       onPressed: onPressed,
     );
   }

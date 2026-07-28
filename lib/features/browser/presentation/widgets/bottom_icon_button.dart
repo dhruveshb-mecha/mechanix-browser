@@ -12,14 +12,16 @@ class BottomIconButton extends StatelessWidget {
     final theme = Theme.of(context);
     final colors = theme.extension<AppColorsExtension>()!;
 
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
-      splashColor: colors.closeButtonBackground,
+    return IconButton(
+      icon: Icon(icon, size: 24),
+      color: colors.searchBarText,
+      onPressed: onTap,
       hoverColor: colors.shortcutHoverBackground,
-      child: Container(
-        padding: const EdgeInsets.all(6),
-        child: Icon(icon, color: colors.searchBarText, size: 24),
+      highlightColor: colors.closeButtonBackground,
+      style: IconButton.styleFrom(
+        backgroundColor: theme.scaffoldBackgroundColor,
+        minimumSize: const Size(48, 48),
+        padding: EdgeInsets.zero,
       ),
     );
   }

@@ -35,6 +35,25 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
   /// Local incremental counter for unique tab ID generation.
   int _tabIdCounter = 0;
 
+  Timer? _hideTimer;
+  bool _isInteracting = false;
+
+  static const Duration bottomBarAutoHideDuration =
+      AppConstants.bottomBarAutoHideDuration;
+
+  void _scheduleAutoHideTimer() {
+    _cancelAutoHideTimer();
+    if (_isInteracting) return;
+    _hideTimer = Timer(bottomBarAutoHideDuration, () {
+      add(const BrowserBottomBarVisibilityChanged(false));
+    });
+  }
+
+  void _cancelAutoHideTimer() {
+    _hideTimer?.cancel();
+    _hideTimer = null;
+  }
+
   /// Gets the [WebViewController] associated with the active tab.
   WebViewController get controller {
     final tab = state.activeTab;
@@ -68,6 +87,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     on<BrowserModeChanged>(_onBrowserModeChanged);
     on<BrowserTabSwitcherOpened>(_onTabSwitcherOpened);
     on<BrowserTabSwitcherModeToggled>(_onTabSwitcherModeToggled);
+    on<BrowserBottomBarVisibilityChanged>(_onBottomBarVisibilityChanged);
   }
 
   /// Creates a new tab instance with the specified [initialUrl].
@@ -143,6 +163,14 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
               );
             },
           ),
+          JavascriptChannel(
+            name: 'ScrollChannel',
+            onMessageReceived: (JavascriptMessage message) {
+              if (message.message == 'atTop') {
+                add(const BrowserBottomBarVisibilityChanged(true));
+              }
+            },
+          ),
         };
         controller.setJavaScriptChannels(jsChannels);
         controller.executeJavaScript("function abc(e){return 'abc:'+ e}");
@@ -157,6 +185,28 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
       onLoadEnd: (c, url) {
         AppLogger.i("onLoadEnd => $url");
         add(BrowserLoadEnded(tabId: tabId));
+
+        c.executeJavaScript('''
+          (function() {
+            let lastScrollY = window.scrollY;
+            let atTop = lastScrollY === 0;
+
+            if (atTop) {
+              ScrollChannel('atTop');
+            }
+
+            window.addEventListener('scroll', () => {
+              const currentScrollY = window.scrollY;
+              if (currentScrollY === 0 && !atTop) {
+                atTop = true;
+                ScrollChannel('atTop');
+              } else if (currentScrollY > 0 && atTop) {
+                atTop = false;
+                ScrollChannel('leftTop');
+              }
+            });
+          })();
+        ''');
       },
       onBeforeDownload:
           (
@@ -424,6 +474,8 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
       final updatedTabs = List<BrowserTab>.from(tabsList)..add(newTab);
       final newActiveIndex = updatedTabs.length - 1;
 
+      _cancelAutoHideTimer();
+
       if (isPrivate) {
         emit(
           state.copyWith(
@@ -431,6 +483,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
             tabSwitcherMode: BrowserMode.private,
             privateTabs: updatedTabs,
             activePrivateTabIndex: newActiveIndex,
+            isBottomBarVisible: true,
           ),
         );
       } else {
@@ -440,9 +493,14 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
             tabSwitcherMode: BrowserMode.normal,
             normalTabs: updatedTabs,
             activeNormalTabIndex: newActiveIndex,
+            isBottomBarVisible: true,
           ),
         );
         _persistTabs();
+      }
+
+      if (!newTab.isLoading) {
+        _scheduleAutoHideTimer();
       }
 
       _updateCurrentPageBookmarkStatus(emit, targetUrl: newTab.currentUrl);
@@ -480,7 +538,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
         final activeTab = tabsList[index];
         if (isPrivate) {
           // For private tabs, closing the last one makes the collection empty and displays the private home splash page.
-          await activeTab.controller.dispose();
+          unawaited(activeTab.controller.dispose());
           emit(
             state.copyWith(privateTabs: const [], activePrivateTabIndex: -1),
           );
@@ -509,7 +567,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
       }
 
       final tabToClose = tabsList[index];
-      await tabToClose.controller.dispose();
+      unawaited(tabToClose.controller.dispose());
 
       final updatedTabs = List<BrowserTab>.from(tabsList)..removeAt(index);
 
@@ -605,12 +663,15 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
         }
       }
 
+      _cancelAutoHideTimer();
+
       if (isPrivate) {
         emit(
           state.copyWith(
             mode: targetMode,
             activePrivateTabIndex: index,
             tabSwitcherMode: targetMode,
+            isBottomBarVisible: true,
           ),
         );
       } else {
@@ -619,8 +680,13 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
             mode: targetMode,
             activeNormalTabIndex: index,
             tabSwitcherMode: targetMode,
+            isBottomBarVisible: true,
           ),
         );
+      }
+
+      if (!newTab.isLoading) {
+        _scheduleAutoHideTimer();
       }
 
       _updateCurrentPageBookmarkStatus(emit, targetUrl: newTab.currentUrl);
@@ -832,12 +898,17 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
         updatedTabs[activeIndex] = updatedTab;
 
         if (isPrivate) {
-          emit(state.copyWith(privateTabs: updatedTabs));
+          emit(
+            state.copyWith(privateTabs: updatedTabs, isBottomBarVisible: true),
+          );
         } else {
-          emit(state.copyWith(normalTabs: updatedTabs));
+          emit(
+            state.copyWith(normalTabs: updatedTabs, isBottomBarVisible: true),
+          );
           _persistTabs();
         }
 
+        _scheduleAutoHideTimer();
         _updateCurrentPageBookmarkStatus(emit, targetUrl: '');
         if (activeTab.controller.value) {
           await activeTab.controller.loadUrl(AppConstants.homepageUrl);
@@ -874,9 +945,9 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     updatedTabs[index] = updatedTab;
 
     if (isPrivate) {
-      emit(state.copyWith(privateTabs: updatedTabs));
+      emit(state.copyWith(privateTabs: updatedTabs, isBottomBarVisible: true));
     } else {
-      emit(state.copyWith(normalTabs: updatedTabs));
+      emit(state.copyWith(normalTabs: updatedTabs, isBottomBarVisible: true));
       _persistTabs();
     }
 
@@ -1010,10 +1081,14 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     final updatedTabs = List<BrowserTab>.from(tabsList);
     updatedTabs[index] = updatedTab;
 
+    if (state.activeTab?.id == event.tabId) {
+      _cancelAutoHideTimer();
+    }
+
     if (isPrivate) {
-      emit(state.copyWith(privateTabs: updatedTabs));
+      emit(state.copyWith(privateTabs: updatedTabs, isBottomBarVisible: true));
     } else {
-      emit(state.copyWith(normalTabs: updatedTabs));
+      emit(state.copyWith(normalTabs: updatedTabs, isBottomBarVisible: true));
     }
   }
 
@@ -1032,10 +1107,14 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     updatedTabs[index] = updatedTab;
 
     if (isPrivate) {
-      emit(state.copyWith(privateTabs: updatedTabs));
+      emit(state.copyWith(privateTabs: updatedTabs, isBottomBarVisible: true));
     } else {
-      emit(state.copyWith(normalTabs: updatedTabs));
+      emit(state.copyWith(normalTabs: updatedTabs, isBottomBarVisible: true));
       _persistTabs();
+    }
+
+    if (state.activeTab?.id == event.tabId) {
+      _scheduleAutoHideTimer();
     }
   }
 
@@ -1161,9 +1240,35 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     emit(state.copyWith(tabSwitcherMode: nextMode));
   }
 
+  void _onBottomBarVisibilityChanged(
+    BrowserBottomBarVisibilityChanged event,
+    Emitter<BrowserState> emit,
+  ) {
+    if (event.isInteracting != null) {
+      _isInteracting = event.isInteracting!;
+    }
+    if (event.isVisible) {
+      if (!state.isBottomBarVisible) {
+        emit(state.copyWith(isBottomBarVisible: true));
+      }
+      if (_isInteracting) {
+        _cancelAutoHideTimer();
+      } else {
+        _scheduleAutoHideTimer();
+      }
+    } else {
+      _isInteracting = false;
+      _cancelAutoHideTimer();
+      if (state.isBottomBarVisible) {
+        emit(state.copyWith(isBottomBarVisible: false));
+      }
+    }
+  }
+
   /// Clean up and dispose of CEF webviews, repositories, and resources.
   @override
   Future<void> close() async {
+    _cancelAutoHideTimer();
     for (final tab in state.normalTabs) {
       tab.controller.dispose();
     }

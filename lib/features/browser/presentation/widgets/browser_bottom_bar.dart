@@ -38,6 +38,13 @@ class _BrowserBottomBarState extends State<BrowserBottomBar> {
       context.read<BrowserBloc>().add(
         BrowserSearchQueryChanged(_textController.text),
       );
+      context.read<BrowserBloc>().add(
+        const BrowserBottomBarVisibilityChanged(true, isInteracting: true),
+      );
+    } else {
+      context.read<BrowserBloc>().add(
+        const BrowserBottomBarVisibilityChanged(true, isInteracting: false),
+      );
     }
   }
 
@@ -96,6 +103,9 @@ class _BrowserBottomBarState extends State<BrowserBottomBar> {
     if (_menuOverlayEntry != null) return;
 
     final bloc = context.read<BrowserBloc>();
+    bloc.add(
+      const BrowserBottomBarVisibilityChanged(true, isInteracting: true),
+    );
 
     _menuOverlayEntry = OverlayEntry(
       builder: (context) {
@@ -135,6 +145,11 @@ class _BrowserBottomBarState extends State<BrowserBottomBar> {
     if (_menuOverlayEntry != null) {
       _menuOverlayEntry!.remove();
       _menuOverlayEntry = null;
+      if (mounted) {
+        context.read<BrowserBloc>().add(
+          const BrowserBottomBarVisibilityChanged(true, isInteracting: false),
+        );
+      }
     }
   }
 
@@ -152,7 +167,6 @@ class _BrowserBottomBarState extends State<BrowserBottomBar> {
   @override
   Widget build(BuildContext context) {
     final bloc = context.read<BrowserBloc>();
-    final theme = Theme.of(context);
 
     return BlocListener<BrowserBloc, BrowserState>(
       listenWhen: (previous, current) =>
@@ -183,9 +197,10 @@ class _BrowserBottomBarState extends State<BrowserBottomBar> {
               );
             },
             child: Container(
-              color: theme.scaffoldBackgroundColor,
+              color: Colors.transparent,
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
               child: Row(
+                spacing: 8,
                 children: [
                   Expanded(
                     child: BrowserSearchInput(

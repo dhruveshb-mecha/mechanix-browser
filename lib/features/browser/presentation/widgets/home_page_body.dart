@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:mechanix_browser/features/browser/bloc/browser_bloc.dart';
 import 'package:mechanix_browser/features/browser/presentation/widgets/browser_home_header.dart';
 import 'package:mechanix_browser/features/browser/presentation/widgets/browser_home_shortcuts.dart';
 
@@ -38,7 +40,12 @@ class _BrowserHomePageBodyState extends State<BrowserHomePageBody> {
       },
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: _exitEditMode,
+        onTap: () {
+          _exitEditMode();
+          context.read<BrowserBloc>().add(
+            const BrowserBottomBarVisibilityChanged(true),
+          );
+        },
         child: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,

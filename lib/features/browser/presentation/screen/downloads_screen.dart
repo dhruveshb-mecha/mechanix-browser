@@ -40,22 +40,28 @@ class DownloadsScreen extends StatelessWidget {
 
               if (!hasCompleted) return const SizedBox.shrink();
 
-              return IconButton(
-                icon: const Icon(Icons.delete_sweep_outlined),
-                tooltip: l10n.clearFinished,
-                onPressed: () => context.read<DownloadBloc>().add(
-                  const DownloadClearCompletedRequested(),
+              return Padding(
+                padding: const EdgeInsets.only(right: 8.0),
+                child: IconButton(
+                  icon: const Icon(Icons.delete_sweep_outlined),
+                  tooltip: l10n.clearFinished,
+                  onPressed: () => context.read<DownloadBloc>().add(
+                    const DownloadClearCompletedRequested(),
+                  ),
                 ),
               );
             },
           ),
-          IconButton(
-            icon: const Icon(Icons.folder_open_outlined),
-            tooltip: l10n.openDownloadsFolder,
-            onPressed: () async {
-              final path = await DownloadService.getDownloadsDirectoryPath();
-              await DownloadService.openDownloadFolder(path);
-            },
+          Padding(
+            padding: const EdgeInsets.only(right: 8.0),
+            child: IconButton(
+              icon: const Icon(Icons.folder_open_outlined),
+              tooltip: l10n.openDownloadsFolder,
+              onPressed: () async {
+                final path = await DownloadService.getDownloadsDirectoryPath();
+                await DownloadService.openDownloadFolder(path);
+              },
+            ),
           ),
         ],
       ),

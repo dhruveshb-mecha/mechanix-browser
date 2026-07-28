@@ -16,6 +16,7 @@ class TabSwitcherSheet extends StatelessWidget {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       builder: (context) {
         return BlocProvider.value(
           value: bloc,
@@ -30,6 +31,9 @@ class TabSwitcherSheet extends StatelessWidget {
     final theme = Theme.of(context);
     final colors = theme.extension<AppColorsExtension>()!;
     final l10n = AppLocalizations.of(context)!;
+    final screenHeight = MediaQuery.of(context).size.height;
+    final statusBarHeight = MediaQuery.of(context).padding.top;
+    final targetHeight = screenHeight - statusBarHeight - 24;
 
     return BlocBuilder<BrowserBloc, BrowserState>(
       builder: (context, state) {
@@ -42,10 +46,10 @@ class TabSwitcherSheet extends StatelessWidget {
         final sheetBackgroundColor = colors.popupBottomBackground;
 
         return Container(
+          height: targetHeight,
           color: sheetBackgroundColor,
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
           child: Column(
-            mainAxisSize: MainAxisSize.min,
             children: [
               // Drag handle
               Container(
@@ -88,71 +92,109 @@ class TabSwitcherSheet extends StatelessWidget {
               const SizedBox(height: 16),
               // Tab grid
               Flexible(
-                child: Container(
-                  constraints: BoxConstraints(
-                    maxHeight: MediaQuery.of(context).size.height * 0.7,
-                  ),
-                  child: tabList.isEmpty
-                      ? Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 48.0),
-                          child: Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  isPrivateView
-                                      ? Icons.visibility_off_rounded
-                                      : Icons.public,
-                                  size: 48,
-                                  color: colors.textTertiary,
+                child: tabList.isEmpty
+                    ? Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 48.0),
+                        child: Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                isPrivateView
+                                    ? Icons.visibility_off_rounded
+                                    : Icons.public,
+                                size: 48,
+                                color: colors.textTertiary,
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                isPrivateView ? 'No Private Tabs' : 'No Tabs',
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: colors.textSecondary,
                                 ),
-                                const SizedBox(height: 16),
-                                Text(
-                                  isPrivateView ? 'No Private Tabs' : 'No Tabs',
-                                  style: theme.textTheme.bodyMedium?.copyWith(
-                                    color: colors.textSecondary,
-                                  ),
-                                ),
-                              ],
-                            ),
+                              ),
+                            ],
                           ),
-                        )
-                      : GridView.builder(
-                          shrinkWrap: true,
-                          gridDelegate:
-                              const SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: 2,
-                                crossAxisSpacing: 16,
-                                mainAxisSpacing: 16,
-                                childAspectRatio: 0.75,
-                              ),
-                          itemCount: tabList.length,
-                          itemBuilder: (context, index) {
-                            final tab = tabList[index];
-                            final isActive = index == activeIndex;
-
-                            return Dismissible(
-                              key: ValueKey('dismiss_${tab.id}'),
-                              direction: DismissDirection.horizontal,
-                              onDismissed: (direction) {
-                                bloc.add(BrowserCloseTabRequested(tab.id));
-                              },
-                              child: TabCardItem(
-                                tab: tab,
-                                isActive: isActive,
-                                onTap: () {
-                                  bloc.add(BrowserSwitchTabRequested(tab.id));
-                                  Navigator.pop(context);
-                                },
-                                onClose: () {
-                                  bloc.add(BrowserCloseTabRequested(tab.id));
-                                },
-                              ),
-                            );
-                          },
                         ),
-                ),
+                      )
+                    : LayoutBuilder(
+                        builder: (context, constraints) {
+                          const crossAxisSpacing = 16.0;
+                          const mainAxisSpacing = 16.0;
+                          const childAspectRatio = 0.75;
+                          const columns = 2;
+
+                          final totalSpacing = crossAxisSpacing * (columns - 1);
+                          final itemWidth =
+                              (constraints.maxWidth - totalSpacing) / columns;
+                          final itemHeight = itemWidth / childAspectRatio;
+
+                          final rowCount = (tabList.length / columns).ceil();
+                          final gridHeight =
+                              rowCount * itemHeight +
+                              (rowCount > 0
+                                  ? (rowCount - 1) * mainAxisSpacing
+                                  : 0);
+
+                          return SingleChildScrollView(
+                            padding: const EdgeInsets.only(bottom: 80),
+                            child: SizedBox(
+                              height: gridHeight,
+                              child: Stack(
+                                children: List.generate(tabList.length, (
+                                  index,
+                                ) {
+                                  final tab = tabList[index];
+                                  final isActive = index == activeIndex;
+
+                                  final row = index ~/ columns;
+                                  final col = index % columns;
+
+                                  final left =
+                                      col * (itemWidth + crossAxisSpacing);
+                                  final top =
+                                      row * (itemHeight + mainAxisSpacing);
+
+                                  return AnimatedPositioned(
+                                    key: ValueKey('pos_${tab.id}'),
+                                    duration: const Duration(milliseconds: 300),
+                                    curve: Curves.easeInOut,
+                                    left: left,
+                                    top: top,
+                                    width: itemWidth,
+                                    height: itemHeight,
+                                    child: Dismissible(
+                                      key: ValueKey('dismiss_${tab.id}'),
+                                      direction: DismissDirection.horizontal,
+                                      onDismissed: (direction) {
+                                        bloc.add(
+                                          BrowserCloseTabRequested(tab.id),
+                                        );
+                                      },
+                                      child: TabCardItem(
+                                        tab: tab,
+                                        isActive: isActive,
+                                        onTap: () {
+                                          bloc.add(
+                                            BrowserSwitchTabRequested(tab.id),
+                                          );
+                                          Navigator.pop(context);
+                                        },
+                                        onClose: () {
+                                          bloc.add(
+                                            BrowserCloseTabRequested(tab.id),
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                  );
+                                }),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
               ),
               const SizedBox(height: 16),
               Row(
@@ -161,73 +203,38 @@ class TabSwitcherSheet extends StatelessWidget {
                   // Toggle normal and private modes
                   IconButton(
                     onPressed: () {
-                      bloc.add(const BrowserTabSwitcherModeToggled());
+                      final targetIsPrivate = !isPrivateView;
+                      final targetTabs = targetIsPrivate
+                          ? state.privateTabs
+                          : state.normalTabs;
+                      if (targetTabs.isEmpty) {
+                        bloc.add(
+                          BrowserNewTabRequested(isPrivate: targetIsPrivate),
+                        );
+                        Navigator.pop(context);
+                      } else {
+                        bloc.add(const BrowserTabSwitcherModeToggled());
+                      }
                     },
                     tooltip: isPrivateView
                         ? 'Switch to Normal Tabs'
                         : 'Switch to Private Tabs',
+                    hoverColor: colors.shortcutHoverBackground,
+                    highlightColor: colors.closeButtonBackground,
                     style: IconButton.styleFrom(
-                      // backgroundColor: isPrivateView
-                      //     ? colors.accentActive.withValues(alpha: 0.15)
-                      //     : Colors.transparent,
-                      // backgroundColor: colors.textSecondary,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        side: BorderSide(
-                          // color: isPrivateView
-                          //     ? colors.accentActive
-                          //     : colors.dragHandle,
-                          // color: colors.dragHandle,
-                          width: 1.5,
-                        ),
-                      ),
+                      minimumSize: const Size(48, 48),
+                      padding: EdgeInsets.zero,
                     ),
                     icon: Image.asset(
                       AppImages.incognitoImage,
-                      width: 20,
-                      height: 20,
-                      color: colors.textSecondary,
-                      // color: isPrivateView
-                      //     ? colors.accentActive
-                      //     : colors.textSecondary,
+                      width: 24,
+                      height: 24,
+                      color: colors.searchBarText,
                     ),
                   ),
                   // Action Buttons (New Private Tab if private list is empty/active, otherwise Close All)
                   Row(
                     children: [
-                      if (isPrivateView) ...[
-                        TextButton.icon(
-                          onPressed: () {
-                            bloc.add(
-                              const BrowserNewTabRequested(isPrivate: true),
-                            );
-                            Navigator.pop(context);
-                          },
-                          icon: Icon(
-                            Icons.add,
-                            size: 16,
-                            color: colors.textSecondary,
-                          ),
-                          label: Text(
-                            'New Private Tab',
-                            style: TextStyle(fontWeight: FontWeight.w600),
-                          ),
-                          style: TextButton.styleFrom(
-                            backgroundColor: colors.accentActive.withValues(
-                              alpha: 0.1,
-                            ),
-                            foregroundColor: colors.textSecondary,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                      ],
                       if (tabList.isNotEmpty)
                         TextButton(
                           onPressed: () {

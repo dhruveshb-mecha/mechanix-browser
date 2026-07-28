@@ -14,6 +14,7 @@ class BrowserState extends Equatable {
   final List<Bookmark> favorites;
   final List<Bookmark> bookmarks;
   final bool isCurrentUrlBookmarked;
+  final bool isBottomBarVisible;
 
   const BrowserState({
     required this.isInitialized,
@@ -27,6 +28,7 @@ class BrowserState extends Equatable {
     required this.favorites,
     required this.bookmarks,
     required this.isCurrentUrlBookmarked,
+    required this.isBottomBarVisible,
   });
 
   const BrowserState.initial()
@@ -40,7 +42,8 @@ class BrowserState extends Equatable {
         searchResults = const [],
         favorites = const [],
         bookmarks = const [],
-        isCurrentUrlBookmarked = false;
+        isCurrentUrlBookmarked = false,
+        isBottomBarVisible = true;
 
   List<BrowserTab> get tabs =>
       mode == BrowserMode.normal ? normalTabs : privateTabs;
@@ -69,6 +72,7 @@ class BrowserState extends Equatable {
     List<Bookmark>? favorites,
     List<Bookmark>? bookmarks,
     bool? isCurrentUrlBookmarked,
+    bool? isBottomBarVisible,
   }) {
     return BrowserState(
       isInitialized: isInitialized ?? this.isInitialized,
@@ -85,6 +89,7 @@ class BrowserState extends Equatable {
       bookmarks: bookmarks ?? this.bookmarks,
       isCurrentUrlBookmarked:
           isCurrentUrlBookmarked ?? this.isCurrentUrlBookmarked,
+      isBottomBarVisible: isBottomBarVisible ?? this.isBottomBarVisible,
     );
   }
 
@@ -101,5 +106,6 @@ class BrowserState extends Equatable {
         favorites,
         bookmarks,
         isCurrentUrlBookmarked,
+        isBottomBarVisible,
       ];
 }

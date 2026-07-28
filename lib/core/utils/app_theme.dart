@@ -197,9 +197,16 @@ class AppTheme {
   static final dark = ThemeData.dark(useMaterial3: true).copyWith(
     primaryColor: Colors.black,
     scaffoldBackgroundColor: Colors.black,
+    scrollbarTheme: const ScrollbarThemeData(
+      thumbVisibility: WidgetStatePropertyAll(false),
+      trackVisibility: WidgetStatePropertyAll(false),
+      thickness: WidgetStatePropertyAll(0.0),
+    ),
     iconButtonTheme: const IconButtonThemeData(
       style: ButtonStyle(
         mouseCursor: WidgetStatePropertyAll(SystemMouseCursors.click),
+        minimumSize: WidgetStatePropertyAll(Size(48, 48)),
+        tapTargetSize: MaterialTapTargetSize.padded,
       ),
     ),
     pageTransitionsTheme: const PageTransitionsTheme(
@@ -298,9 +305,16 @@ class AppTheme {
   static final light = ThemeData.light(useMaterial3: true).copyWith(
     primaryColor: Colors.white,
     scaffoldBackgroundColor: Colors.white,
+    scrollbarTheme: const ScrollbarThemeData(
+      thumbVisibility: WidgetStatePropertyAll(false),
+      trackVisibility: WidgetStatePropertyAll(false),
+      thickness: WidgetStatePropertyAll(0.0),
+    ),
     iconButtonTheme: const IconButtonThemeData(
       style: ButtonStyle(
         mouseCursor: WidgetStatePropertyAll(SystemMouseCursors.click),
+        minimumSize: WidgetStatePropertyAll(Size(48, 48)),
+        tapTargetSize: MaterialTapTargetSize.padded,
       ),
     ),
     pageTransitionsTheme: const PageTransitionsTheme(

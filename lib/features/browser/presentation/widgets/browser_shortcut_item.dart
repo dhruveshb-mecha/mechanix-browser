@@ -110,8 +110,8 @@ class BrowserShortcutItem extends StatelessWidget {
             ],
           ),
           Positioned(
-            top: -6,
-            right: 6,
+            top: -20,
+            right: -8,
             child: IgnorePointer(
               ignoring: !isEditMode,
               child: AnimatedScale(
@@ -122,25 +122,32 @@ class BrowserShortcutItem extends StatelessWidget {
                   opacity: isEditMode ? 1.0 : 0.0,
                   duration: const Duration(milliseconds: 150),
                   child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
                     onTap: onRemove,
-                    child: Container(
-                      width: 20,
-                      height: 20,
-                      decoration: const BoxDecoration(
-                        color: Color(0xFFE35D5D),
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black26,
-                            blurRadius: 4,
-                            offset: Offset(0, 2),
+                    child: SizedBox(
+                      width: 48,
+                      height: 48,
+                      child: Center(
+                        child: Container(
+                          width: 20,
+                          height: 20,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFFE35D5D),
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black26,
+                                blurRadius: 4,
+                                offset: Offset(0, 2),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
-                      child: const Icon(
-                        Icons.close,
-                        color: Colors.white,
-                        size: 12,
+                          child: const Icon(
+                            Icons.close,
+                            color: Colors.white,
+                            size: 12,
+                          ),
+                        ),
                       ),
                     ),
                   ),

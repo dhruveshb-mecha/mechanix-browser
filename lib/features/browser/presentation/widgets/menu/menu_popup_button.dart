@@ -17,19 +17,18 @@ class MenuPopupButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.extension<AppColorsExtension>()!;
-    return Material(
-      color: colors.popupBottomButtonBackground,
-      borderRadius: BorderRadius.circular(10),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(10),
-        splashColor: colors.closeButtonBackground,
-        hoverColor: colors.shortcutHoverBackground,
-        child: SizedBox(
-          width: 44,
-          height: 44,
-          child: Icon(icon, color: iconColor ?? colors.searchBarText, size: 20),
-        ),
+    return IconButton(
+      icon: Icon(icon, size: 20),
+      color: iconColor ?? colors.searchBarText,
+      onPressed: onTap,
+      hoverColor: colors.shortcutHoverBackground,
+      highlightColor: colors.closeButtonBackground,
+      style: IconButton.styleFrom(
+        backgroundColor: colors.popupBottomButtonBackground,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        minimumSize: const Size(48, 48),
+        maximumSize: const Size(48, 48),
+        padding: EdgeInsets.zero,
       ),
     );
   }

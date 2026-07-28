@@ -51,7 +51,7 @@ class TabCardItem extends StatelessWidget {
           children: [
             // WebView preview
             Positioned.fill(
-              bottom: 40, // Leave space for the title bar at the bottom
+              bottom: 48,
               child: IgnorePointer(child: StaticWebView(tab.controller)),
             ),
             // Fallback for empty/loading tabs
@@ -64,11 +64,9 @@ class TabCardItem extends StatelessWidget {
               right: 0,
               bottom: 0,
               child: Container(
+                height: 48,
                 color: colors.popupBarrierColor.withValues(alpha: 0.45),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 12),
                 child: Row(
                   children: [
                     Expanded(
@@ -84,17 +82,24 @@ class TabCardItem extends StatelessWidget {
                     ),
                     const SizedBox(width: 8),
                     GestureDetector(
+                      behavior: HitTestBehavior.opaque,
                       onTap: onClose,
-                      child: Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: BoxDecoration(
-                          color: colors.closeButtonBackground,
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          Icons.close,
-                          size: 14,
-                          color: colors.searchBarText,
+                      child: SizedBox(
+                        width: 48,
+                        height: 48,
+                        child: Center(
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: colors.closeButtonBackground,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.close,
+                              size: 14,
+                              color: colors.searchBarText,
+                            ),
+                          ),
                         ),
                       ),
                     ),

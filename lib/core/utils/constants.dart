@@ -5,6 +5,7 @@ class AppConstants {
   static const String defaultScheme = 'https://';
   static const String dbPath = '.config/mechanix_apps/browser/objectbox';
   static const int maxFavoritesCount = 5;
+  static const Duration bottomBarAutoHideDuration = Duration(seconds: 2);
 }
 
 class AppImages {

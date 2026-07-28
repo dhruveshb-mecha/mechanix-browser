@@ -20,12 +20,10 @@ class BrowserBottomActions extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       mainAxisSize: MainAxisSize.min,
+      spacing: 8,
       children: [
-        const SizedBox(width: 16),
         BottomIconButton(icon: Icons.add, onTap: onNewTab),
-        const SizedBox(width: 16),
         TabCountButton(count: tabCount, onTap: onOpenTabs),
-        const SizedBox(width: 16),
         BottomIconButton(icon: Icons.menu, onTap: onOpenMenu),
       ],
     );
