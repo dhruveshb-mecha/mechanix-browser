@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:equatable/equatable.dart';
 import 'package:flutter/material.dart';
@@ -184,7 +185,6 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
         add(BrowserLoadStarted(tabId: tabId));
       },
       onLoadEnd: (c, url) {
-        AppLogger.i("onLoadEnd => $url");
         add(BrowserLoadEnded(tabId: tabId));
 
         c.executeJavaScript('''
@@ -456,6 +456,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
 
       final oldTab = state.activeTab;
       if (oldTab != null) {
+        await _captureTabScreenshot(oldTab, emit);
         if (oldTab.controller.value) {
           await oldTab.controller.setClientFocus(false);
           await oldTab.controller.wasHidden(true);
@@ -533,6 +534,19 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
 
       final index = tabsList.indexWhere((t) => t.id == tabId);
       if (index == -1) return;
+      final tabToClose = tabsList[index];
+      try {
+        // Delete the image file if it exists
+        if (tabToClose.imagePath != null) {
+          final file = File(tabToClose.imagePath!);
+          if (await file.exists()) {
+            await file.delete();
+          }
+        }
+      } catch (e) {
+        AppLogger.e("Error deleting tab screenshot", error: e);
+        // Continue to dispose the controller even if deleting the screenshot fails
+      }
 
       /// If only one tab remains in that list
       if (tabsList.length == 1) {
@@ -567,7 +581,6 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
         return;
       }
 
-      final tabToClose = tabsList[index];
       unawaited(tabToClose.controller.dispose());
 
       final updatedTabs = List<BrowserTab>.from(tabsList)..removeAt(index);
@@ -655,6 +668,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
       if (state.mode == targetMode && activeIndex == index) return;
 
       if (oldTab != null) {
+        await _captureTabScreenshot(oldTab, emit);
         if (oldTab.controller.value) {
           await oldTab.controller.setClientFocus(false);
           await oldTab.controller.wasHidden(true);
@@ -723,6 +737,18 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
       final tabsList = isPrivate ? state.privateTabs : state.normalTabs;
 
       for (final tab in tabsList) {
+        // Delete image file if it exists
+        try {
+          if (tab.imagePath != null) {
+            final file = File(tab.imagePath!);
+            if (await file.exists()) {
+              await file.delete();
+            }
+          }
+        } catch (e) {
+          AppLogger.e("Error deleting tab screenshot", error: e);
+          continue; // Continue to dispose the controller even if deleting the screenshot fails
+        }
         await tab.controller.dispose();
       }
 
@@ -767,6 +793,50 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     }
     _tabRepository!.deleteAllTabs();
     _tabRepository!.saveAllTabs(tabsToSave);
+  }
+
+  Future<void> _captureTabScreenshot(
+    BrowserTab? tab,
+    Emitter<BrowserState> emit,
+  ) async {
+    if (tab == null) return;
+    if (!tab.controller.value) return;
+    if (tab.isHomePage || tab.currentUrl.isEmpty) return;
+
+    try {
+      final tempDir = Directory.systemTemp;
+      final screenshotDir = Directory('${tempDir.path}/mechanix_browser_tabs');
+      if (!await screenshotDir.exists()) {
+        await screenshotDir.create(recursive: true);
+      }
+
+      final path = '${screenshotDir.path}/tab_${tab.id}.png';
+      final result = await tab.controller.captureScreenshot(path);
+
+      if (result != null) {
+        final isPrivate = tab.isPrivate;
+        final tabsList = isPrivate ? state.privateTabs : state.normalTabs;
+        final index = tabsList.indexWhere((t) => t.id == tab.id);
+
+        if (index != -1) {
+          final updatedTab = tab.copyWith(imagePath: path);
+          final updatedTabs = List<BrowserTab>.from(tabsList);
+          updatedTabs[index] = updatedTab;
+
+          if (isPrivate) {
+            emit(state.copyWith(privateTabs: updatedTabs));
+          } else {
+            emit(state.copyWith(normalTabs: updatedTabs));
+          }
+        }
+      }
+    } catch (e, stackTrace) {
+      AppLogger.e(
+        "Error capturing tab screenshot",
+        error: e,
+        stack: stackTrace,
+      );
+    }
   }
 
   /// Handler to load a new URL in the active tab.
@@ -1193,6 +1263,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     if (state.mode == event.mode) return;
 
     final oldTab = state.activeTab;
+    await _captureTabScreenshot(oldTab, emit);
 
     emit(state.copyWith(mode: event.mode));
 
@@ -1228,6 +1299,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     BrowserTabSwitcherOpened event,
     Emitter<BrowserState> emit,
   ) {
+    // _captureTabScreenshot(state.activeTab, emit);
     emit(state.copyWith(tabSwitcherMode: state.mode));
   }
 

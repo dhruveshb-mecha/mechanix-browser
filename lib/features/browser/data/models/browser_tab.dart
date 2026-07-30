@@ -9,6 +9,7 @@ class BrowserTab extends Equatable {
   final bool isHomePage;
   final bool isLoading;
   final bool isPrivate;
+  final String? imagePath;
 
   const BrowserTab({
     required this.id,
@@ -18,6 +19,7 @@ class BrowserTab extends Equatable {
     required this.isHomePage,
     required this.isLoading,
     this.isPrivate = false,
+    this.imagePath,
   });
 
   BrowserTab copyWith({
@@ -28,6 +30,8 @@ class BrowserTab extends Equatable {
     bool? isHomePage,
     bool? isLoading,
     bool? isPrivate,
+    String? imagePath,
+    int? screenshotVersion,
   }) {
     return BrowserTab(
       id: id ?? this.id,
@@ -37,6 +41,7 @@ class BrowserTab extends Equatable {
       isHomePage: isHomePage ?? this.isHomePage,
       isLoading: isLoading ?? this.isLoading,
       isPrivate: isPrivate ?? this.isPrivate,
+      imagePath: imagePath ?? this.imagePath,
     );
   }
 
@@ -49,5 +54,6 @@ class BrowserTab extends Equatable {
     isHomePage,
     isLoading,
     isPrivate,
+    imagePath,
   ];
 }

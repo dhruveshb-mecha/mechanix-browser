@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:mechanix_browser/core/utils/app_theme.dart';
 import 'package:mechanix_browser/features/browser/data/models/browser_tab.dart';
@@ -49,16 +51,29 @@ class TabCardItem extends StatelessWidget {
         clipBehavior: Clip.antiAlias,
         child: Stack(
           children: [
-            // WebView preview
+            // WebView preview or Screenshot
             Positioned.fill(
               bottom: 48,
-              child: IgnorePointer(child: StaticWebView(tab.controller)),
-            ),
-            // Fallback for empty/loading tabs
-            if (tab.currentUrl.isEmpty)
-              Center(
-                child: Icon(Icons.public, size: 48, color: colors.dragHandle),
+              child: IgnorePointer(
+                child: isActive
+                    ? StaticWebView(tab.controller)
+                    : tab.imagePath != null && File(tab.imagePath!).existsSync()
+                        ? Image.memory(
+                            File(tab.imagePath!).readAsBytesSync(),
+                            fit: BoxFit.cover,
+                            cacheWidth: 300,
+                            errorBuilder: (context, error, stackTrace) =>
+                                Center(
+                              child: Icon(Icons.public,
+                                  size: 48, color: colors.dragHandle),
+                            ),
+                          )
+                        : Center(
+                            child: Icon(Icons.public,
+                                size: 48, color: colors.dragHandle),
+                          ),
               ),
+            ),
             Positioned(
               left: 0,
               right: 0,
