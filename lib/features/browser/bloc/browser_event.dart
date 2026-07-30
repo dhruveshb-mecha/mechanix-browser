@@ -180,3 +180,12 @@ class BrowserBottomBarVisibilityChanged extends BrowserEvent {
   @override
   List<Object?> get props => [isVisible, isInteracting];
 }
+
+class BrowserWasHiddenRequested extends BrowserEvent {
+  final bool isHidden;
+  const BrowserWasHiddenRequested(this.isHidden);
+
+  @override
+  List<Object?> get props => [isHidden];
+}
+

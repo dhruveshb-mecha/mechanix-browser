@@ -7,14 +7,12 @@ import 'menu/browser_menu_bottom_bar.dart';
 import 'menu/browser_menu_list_section.dart';
 
 class BrowserMenuPopupContent extends StatefulWidget {
-  final BrowserBloc bloc;
-  final VoidCallback onDismiss;
+  final VoidCallback hideMenu; // hide pop up menu
   final VoidCallback? onFindInPage;
 
   const BrowserMenuPopupContent({
     super.key,
-    required this.bloc,
-    required this.onDismiss,
+    required this.hideMenu,
     this.onFindInPage,
   });
 
@@ -38,7 +36,6 @@ class _BrowserMenuPopupContentState extends State<BrowserMenuPopupContent> {
     final colors = theme.extension<AppColorsExtension>()!;
 
     return BlocBuilder<BrowserBloc, BrowserState>(
-      bloc: widget.bloc,
       builder: (context, state) {
         return Container(
           width: 346,
@@ -59,17 +56,15 @@ class _BrowserMenuPopupContentState extends State<BrowserMenuPopupContent> {
             mainAxisSize: MainAxisSize.min,
             children: [
               BrowserMenuListSection(
-                bloc: widget.bloc,
                 state: state,
                 isDesktopSite: isDesktopSite,
                 onToggleDesktopSite: _toggleDesktopSite,
-                onDismiss: widget.onDismiss,
+                hideMenu: widget.hideMenu,
               ),
               Divider(color: colors.panelBorder, height: 1, thickness: 1),
               BrowserMenuBottomBar(
-                bloc: widget.bloc,
                 state: state,
-                onDismiss: widget.onDismiss,
+                hideMenu: widget.hideMenu,
                 onFindInPage: widget.onFindInPage,
               ),
             ],

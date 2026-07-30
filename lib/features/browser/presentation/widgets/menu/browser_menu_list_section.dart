@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mechanix_browser/core/routes/app_routes.dart';
+import 'package:mechanix_browser/core/utils/app_logger.dart';
 import 'package:mechanix_browser/core/utils/app_theme.dart';
 import 'package:mechanix_browser/features/browser/bloc/browser_bloc.dart';
 import 'package:mechanix_browser/l10n/app_localizations.dart';
@@ -7,20 +9,64 @@ import 'package:mechanix_browser/l10n/app_localizations.dart';
 import 'menu_popup_list_tile.dart';
 
 class BrowserMenuListSection extends StatelessWidget {
-  final BrowserBloc bloc;
   final BrowserState state;
   final bool isDesktopSite;
   final ValueChanged<bool> onToggleDesktopSite;
-  final VoidCallback onDismiss;
+  final VoidCallback hideMenu; // hide pop up menu
 
   const BrowserMenuListSection({
     super.key,
-    required this.bloc,
     required this.state,
     required this.isDesktopSite,
     required this.onToggleDesktopSite,
-    required this.onDismiss,
+    required this.hideMenu,
   });
+
+  void _handleNewTab(BuildContext context) {
+    hideMenu();
+    if (state.isInitialized) {
+      context.read<BrowserBloc>().add(const BrowserNewTabRequested());
+    }
+  }
+
+  void _handleNewPrivateTab(BuildContext context) {
+    hideMenu();
+    if (state.isInitialized) {
+      context.read<BrowserBloc>().add(
+        const BrowserNewTabRequested(isPrivate: true),
+      );
+    }
+  }
+
+  Future<void> _handleNavigateToRoute(
+    BuildContext context,
+    String routeName,
+  ) async {
+    try {
+      final navigator = Navigator.of(context);
+      hideMenu();
+      context.read<BrowserBloc>().add(const BrowserWasHiddenRequested(true));
+      await navigator.pushNamed(routeName);
+    } catch (e, stackTrace) {
+      AppLogger.e(
+        'Error navigating to $routeName',
+        error: e,
+        stack: stackTrace,
+      );
+    } finally {
+      if (context.mounted) {
+        context.read<BrowserBloc>().add(const BrowserWasHiddenRequested(false));
+      }
+    }
+  }
+
+  void _handleShare() {
+    hideMenu(); // TODO: we implement share functionality here
+  }
+
+  void _handleToggleDesktopSite() {
+    onToggleDesktopSite(!isDesktopSite);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -36,46 +82,27 @@ class BrowserMenuListSection extends StatelessWidget {
             MenuPopupListTile(
               icon: Icons.add,
               label: l10n.newTab,
-              onTap: () {
-                onDismiss();
-                if (state.isInitialized) {
-                  bloc.add(const BrowserNewTabRequested());
-                }
-              },
+              onTap: () => _handleNewTab(context),
             ),
             MenuPopupListTile(
               icon: Icons.visibility_off_outlined,
               label: l10n.newPrivateTab,
-              onTap: () {
-                onDismiss();
-                if (state.isInitialized) {
-                  bloc.add(const BrowserNewTabRequested(isPrivate: true));
-                }
-              },
+              onTap: () => _handleNewPrivateTab(context),
             ),
             MenuPopupListTile(
               icon: Icons.history,
               label: l10n.history,
-              onTap: () {
-                onDismiss();
-                Navigator.pushNamed(context, AppRoutes.history);
-              },
+              onTap: () => _handleNavigateToRoute(context, AppRoutes.history),
             ),
             MenuPopupListTile(
               icon: Icons.bookmark_border_rounded,
               label: l10n.bookmarks,
-              onTap: () {
-                onDismiss();
-                Navigator.pushNamed(context, AppRoutes.bookmarks);
-              },
+              onTap: () => _handleNavigateToRoute(context, AppRoutes.bookmarks),
             ),
             MenuPopupListTile(
               icon: Icons.download_outlined,
               label: l10n.downloads,
-              onTap: () {
-                onDismiss();
-                Navigator.pushNamed(context, AppRoutes.downloads);
-              },
+              onTap: () => _handleNavigateToRoute(context, AppRoutes.downloads),
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -88,9 +115,7 @@ class BrowserMenuListSection extends StatelessWidget {
             MenuPopupListTile(
               icon: Icons.share_outlined,
               label: l10n.share,
-              onTap: () {
-                onDismiss();
-              },
+              onTap: _handleShare,
             ),
             MenuPopupListTile(
               icon: Icons.computer_outlined,
@@ -103,17 +128,12 @@ class BrowserMenuListSection extends StatelessWidget {
                   onToggleDesktopSite(val ?? false);
                 },
               ),
-              onTap: () {
-                onToggleDesktopSite(!isDesktopSite);
-              },
+              onTap: _handleToggleDesktopSite,
             ),
             MenuPopupListTile(
               icon: Icons.settings_outlined,
               label: l10n.settings,
-              onTap: () {
-                onDismiss();
-                Navigator.pushNamed(context, AppRoutes.settings);
-              },
+              onTap: () => _handleNavigateToRoute(context, AppRoutes.settings),
             ),
           ],
         ),

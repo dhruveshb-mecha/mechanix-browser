@@ -88,6 +88,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     on<BrowserTabSwitcherOpened>(_onTabSwitcherOpened);
     on<BrowserTabSwitcherModeToggled>(_onTabSwitcherModeToggled);
     on<BrowserBottomBarVisibilityChanged>(_onBottomBarVisibilityChanged);
+    on<BrowserWasHiddenRequested>(_onWasHidden);
   }
 
   /// Creates a new tab instance with the specified [initialUrl].
@@ -1262,6 +1263,22 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
       if (state.isBottomBarVisible) {
         emit(state.copyWith(isBottomBarVisible: false));
       }
+    }
+  }
+
+  /// Sets the hidden state and client focus of the active webview tab controller.
+  Future<void> _onWasHidden(
+    BrowserWasHiddenRequested event,
+    Emitter<BrowserState> emit,
+  ) async {
+    try {
+      final activeTab = state.activeTab;
+      if (activeTab != null && activeTab.controller.value) {
+        await activeTab.controller.wasHidden(event.isHidden);
+        await activeTab.controller.setClientFocus(!event.isHidden);
+      }
+    } catch (e, stackTrace) {
+      AppLogger.w("Error setting wasHidden state: $e $stackTrace");
     }
   }
 

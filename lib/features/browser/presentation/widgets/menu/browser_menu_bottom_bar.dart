@@ -1,21 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mechanix_browser/core/utils/app_theme.dart';
 import 'package:mechanix_browser/features/browser/bloc/browser_bloc.dart';
-import 'package:mechanix_browser/l10n/app_localizations.dart';
 
 import 'menu_popup_button.dart';
 
 class BrowserMenuBottomBar extends StatelessWidget {
-  final BrowserBloc bloc;
   final BrowserState state;
-  final VoidCallback onDismiss;
+  final VoidCallback hideMenu; // hide pop up menu
   final VoidCallback? onFindInPage;
 
   const BrowserMenuBottomBar({
     super.key,
-    required this.bloc,
     required this.state,
-    required this.onDismiss,
+    required this.hideMenu,
     this.onFindInPage,
   });
 
@@ -23,7 +21,6 @@ class BrowserMenuBottomBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.extension<AppColorsExtension>()!;
-    final l10n = AppLocalizations.of(context)!;
 
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
@@ -37,27 +34,27 @@ class BrowserMenuBottomBar extends StatelessWidget {
           MenuPopupButton(
             icon: Icons.chevron_left_rounded,
             onTap: () {
-              onDismiss();
+              hideMenu();
               if (state.isInitialized) {
-                bloc.add(BrowserGoBackRequested());
+                context.read<BrowserBloc>().add(BrowserGoBackRequested());
               }
             },
           ),
           MenuPopupButton(
             icon: Icons.chevron_right_rounded,
             onTap: () {
-              onDismiss();
+              hideMenu();
               if (state.isInitialized) {
-                bloc.add(BrowserGoForwardRequested());
+                context.read<BrowserBloc>().add(BrowserGoForwardRequested());
               }
             },
           ),
           MenuPopupButton(
             icon: Icons.refresh_rounded,
             onTap: () {
-              onDismiss();
+              hideMenu();
               if (state.isInitialized) {
-                bloc.add(BrowserReloadRequested());
+                context.read<BrowserBloc>().add(BrowserReloadRequested());
               }
             },
           ),
@@ -70,7 +67,7 @@ class BrowserMenuBottomBar extends StatelessWidget {
                 : colors.searchBarText,
             onTap: () {
               if (state.currentUrl.isNotEmpty) {
-                bloc.add(
+                context.read<BrowserBloc>().add(
                   BrowserBookmarkToggled(
                     url: state.currentUrl,
                     title: state.title,
@@ -82,7 +79,7 @@ class BrowserMenuBottomBar extends StatelessWidget {
           MenuPopupButton(
             icon: Icons.search_rounded,
             onTap: () {
-              onDismiss();
+              hideMenu();
               onFindInPage?.call();
             },
           ),

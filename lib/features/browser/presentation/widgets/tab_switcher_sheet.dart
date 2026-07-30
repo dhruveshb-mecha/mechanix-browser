@@ -13,6 +13,7 @@ class TabSwitcherSheet extends StatelessWidget {
 
   static void show(BuildContext context, BrowserBloc bloc) {
     bloc.add(const BrowserTabSwitcherOpened());
+    bloc.add(const BrowserWasHiddenRequested(true));
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -23,7 +24,9 @@ class TabSwitcherSheet extends StatelessWidget {
           child: TabSwitcherSheet(bloc: bloc),
         );
       },
-    );
+    ).then((_) {
+      bloc.add(const BrowserWasHiddenRequested(false));
+    });
   }
 
   @override

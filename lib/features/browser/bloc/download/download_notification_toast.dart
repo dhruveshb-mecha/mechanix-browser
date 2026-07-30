@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mechanix_browser/core/routes/app_routes.dart';
+import 'package:mechanix_browser/core/utils/app_logger.dart';
 import 'package:mechanix_browser/core/utils/app_theme.dart';
+import 'package:mechanix_browser/features/browser/bloc/browser_bloc.dart';
 import 'package:mechanix_browser/features/browser/bloc/download/download_bloc.dart';
 import 'package:mechanix_browser/l10n/app_localizations.dart';
 
@@ -29,7 +31,7 @@ class DownloadNotificationOverlay extends StatelessWidget {
             borderRadius: BorderRadius.circular(12),
             color: colors.panelBackground,
             child: InkWell(
-              onTap: () => Navigator.pushNamed(context, AppRoutes.downloads),
+              onTap: () => _openDownloads(context),
               borderRadius: BorderRadius.circular(12),
               child: Container(
                 padding: const EdgeInsets.symmetric(
@@ -97,5 +99,18 @@ class DownloadNotificationOverlay extends StatelessWidget {
         );
       },
     );
+  }
+
+  Future<void> _openDownloads(BuildContext context) async {
+    final bloc = context.read<BrowserBloc>();
+    final navigator = Navigator.of(context);
+    bloc.add(const BrowserWasHiddenRequested(true));
+    try {
+      await navigator.pushNamed(AppRoutes.downloads);
+    } catch (e) {
+      AppLogger.i('Error navigating to downloads: $e');
+    } finally {
+      bloc.add(const BrowserWasHiddenRequested(false));
+    }
   }
 }
