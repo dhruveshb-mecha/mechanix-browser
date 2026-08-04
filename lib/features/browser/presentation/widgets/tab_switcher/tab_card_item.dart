@@ -1,4 +1,3 @@
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:mechanix_browser/core/utils/app_theme.dart';
@@ -57,9 +56,9 @@ class TabCardItem extends StatelessWidget {
               child: IgnorePointer(
                 child: isActive
                     ? StaticWebView(tab.controller)
-                    : tab.imagePath != null && File(tab.imagePath!).existsSync()
+                    : tab.screenshot != null
                         ? Image.memory(
-                            File(tab.imagePath!).readAsBytesSync(),
+                            tab.screenshot!,
                             fit: BoxFit.cover,
                             cacheWidth: 300,
                             errorBuilder: (context, error, stackTrace) =>

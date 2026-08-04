@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:equatable/equatable.dart';
 import 'package:webview_cef/webview_cef.dart';
 
@@ -9,7 +11,7 @@ class BrowserTab extends Equatable {
   final bool isHomePage;
   final bool isLoading;
   final bool isPrivate;
-  final String? imagePath;
+  final Uint8List? screenshot;
 
   const BrowserTab({
     required this.id,
@@ -19,7 +21,7 @@ class BrowserTab extends Equatable {
     required this.isHomePage,
     required this.isLoading,
     this.isPrivate = false,
-    this.imagePath,
+    this.screenshot,
   });
 
   BrowserTab copyWith({
@@ -30,7 +32,7 @@ class BrowserTab extends Equatable {
     bool? isHomePage,
     bool? isLoading,
     bool? isPrivate,
-    String? imagePath,
+    Uint8List? screenshot,
     int? screenshotVersion,
   }) {
     return BrowserTab(
@@ -41,7 +43,7 @@ class BrowserTab extends Equatable {
       isHomePage: isHomePage ?? this.isHomePage,
       isLoading: isLoading ?? this.isLoading,
       isPrivate: isPrivate ?? this.isPrivate,
-      imagePath: imagePath ?? this.imagePath,
+      screenshot: screenshot ?? this.screenshot,
     );
   }
 
@@ -54,6 +56,6 @@ class BrowserTab extends Equatable {
     isHomePage,
     isLoading,
     isPrivate,
-    imagePath,
+    screenshot,
   ];
 }

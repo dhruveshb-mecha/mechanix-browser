@@ -110,7 +110,7 @@ final _entities = <obx_int.ModelEntity>[
   obx_int.ModelEntity(
     id: const obx_int.IdUid(3, 1923416986273577909),
     name: 'TabEntity',
-    lastPropertyId: const obx_int.IdUid(6, 5339588714681877315),
+    lastPropertyId: const obx_int.IdUid(8, 8193946014709493973),
     flags: 0,
     properties: <obx_int.ModelProperty>[
       obx_int.ModelProperty(
@@ -147,6 +147,12 @@ final _entities = <obx_int.ModelEntity>[
         id: const obx_int.IdUid(6, 5339588714681877315),
         name: 'isActive',
         type: 1,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(8, 8193946014709493973),
+        name: 'screenshot',
+        type: 23,
         flags: 0,
       ),
     ],
@@ -204,7 +210,7 @@ obx_int.ModelDefinition getObjectBoxModel() {
     lastSequenceId: const obx_int.IdUid(0, 0),
     retiredEntityUids: const [],
     retiredIndexUids: const [],
-    retiredPropertyUids: const [],
+    retiredPropertyUids: const [5539269492544820135],
     retiredRelationUids: const [],
     modelVersion: 5,
     modelVersionParserMinimum: 5,
@@ -348,13 +354,17 @@ obx_int.ModelDefinition getObjectBoxModel() {
         final tabIdOffset = fbb.writeString(object.tabId);
         final urlOffset = fbb.writeString(object.url);
         final titleOffset = fbb.writeString(object.title);
-        fbb.startTable(7);
+        final screenshotOffset = object.screenshot == null
+            ? null
+            : fbb.writeListInt8(object.screenshot!);
+        fbb.startTable(9);
         fbb.addInt64(0, object.id);
         fbb.addOffset(1, tabIdOffset);
         fbb.addInt64(2, object.tabIndex);
         fbb.addOffset(3, urlOffset);
         fbb.addOffset(4, titleOffset);
         fbb.addBool(5, object.isActive);
+        fbb.addOffset(7, screenshotOffset);
         fbb.finish(fbb.endTable());
         return object.id;
       },
@@ -388,6 +398,11 @@ obx_int.ModelDefinition getObjectBoxModel() {
           14,
           false,
         );
+        final screenshotParam =
+            const fb.Uint8ListReader(
+                  lazy: false,
+                ).vTableGetNullable(buffer, rootOffset, 18)
+                as Uint8List?;
         final object = TabEntity(
           id: idParam,
           tabId: tabIdParam,
@@ -395,6 +410,7 @@ obx_int.ModelDefinition getObjectBoxModel() {
           url: urlParam,
           title: titleParam,
           isActive: isActiveParam,
+          screenshot: screenshotParam,
         );
 
         return object;
@@ -496,5 +512,10 @@ class TabEntity_ {
   /// See [TabEntity.isActive].
   static final isActive = obx.QueryBooleanProperty<TabEntity>(
     _entities[2].properties[5],
+  );
+
+  /// See [TabEntity.screenshot].
+  static final screenshot = obx.QueryByteVectorProperty<TabEntity>(
+    _entities[2].properties[6],
   );
 }

@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:equatable/equatable.dart';
 import 'package:flutter/material.dart';
@@ -300,6 +299,8 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
             tabEntity.url.isEmpty ? AppConstants.homepageUrl : tabEntity.url,
             id: tabEntity.tabId,
             load: tabEntity.isActive,
+          ).copyWith(
+            screenshot: tabEntity.screenshot,
           );
           tabs.add(tab);
           if (tabEntity.isActive) {
@@ -535,19 +536,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
       final index = tabsList.indexWhere((t) => t.id == tabId);
       if (index == -1) return;
       final tabToClose = tabsList[index];
-      try {
-        // Delete the image file if it exists
-        if (tabToClose.imagePath != null) {
-          final file = File(tabToClose.imagePath!);
-          if (await file.exists()) {
-            await file.delete();
-          }
-        }
-      } catch (e) {
-        AppLogger.e("Error deleting tab screenshot", error: e);
-        // Continue to dispose the controller even if deleting the screenshot fails
-      }
-
+      
       /// If only one tab remains in that list
       if (tabsList.length == 1) {
         final activeTab = tabsList[index];
@@ -737,18 +726,6 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
       final tabsList = isPrivate ? state.privateTabs : state.normalTabs;
 
       for (final tab in tabsList) {
-        // Delete image file if it exists
-        try {
-          if (tab.imagePath != null) {
-            final file = File(tab.imagePath!);
-            if (await file.exists()) {
-              await file.delete();
-            }
-          }
-        } catch (e) {
-          AppLogger.e("Error deleting tab screenshot", error: e);
-          continue; // Continue to dispose the controller even if deleting the screenshot fails
-        }
         await tab.controller.dispose();
       }
 
@@ -788,6 +765,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
           url: tab.isHomePage ? '' : tab.currentUrl,
           title: tab.title,
           isActive: i == state.activeNormalTabIndex,
+          screenshot: tab.screenshot,
         ),
       );
     }
@@ -802,24 +780,19 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     if (tab == null) return;
     if (!tab.controller.value) return;
     if (tab.isHomePage || tab.currentUrl.isEmpty) return;
+    if (_tabRepository == null) return;
 
     try {
-      final tempDir = Directory.systemTemp;
-      final screenshotDir = Directory('${tempDir.path}/mechanix_browser_tabs');
-      if (!await screenshotDir.exists()) {
-        await screenshotDir.create(recursive: true);
-      }
-
-      final path = '${screenshotDir.path}/tab_${tab.id}.png';
-      final result = await tab.controller.captureScreenshot(path);
-
-      if (result != null) {
+      final screenshotBytes = await tab.controller.captureScreenshot();
+      if (screenshotBytes != null && screenshotBytes.isNotEmpty) {
         final isPrivate = tab.isPrivate;
         final tabsList = isPrivate ? state.privateTabs : state.normalTabs;
         final index = tabsList.indexWhere((t) => t.id == tab.id);
 
         if (index != -1) {
-          final updatedTab = tab.copyWith(imagePath: path);
+          final updatedTab = tab.copyWith(
+            screenshot: screenshotBytes,
+          );
           final updatedTabs = List<BrowserTab>.from(tabsList);
           updatedTabs[index] = updatedTab;
 
@@ -827,6 +800,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
             emit(state.copyWith(privateTabs: updatedTabs));
           } else {
             emit(state.copyWith(normalTabs: updatedTabs));
+            _persistTabs();
           }
         }
       }

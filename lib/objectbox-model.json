@@ -78,7 +78,7 @@
     },
     {
       "id": "3:1923416986273577909",
-      "lastPropertyId": "6:5339588714681877315",
+      "lastPropertyId": "8:8193946014709493973",
       "name": "TabEntity",
       "properties": [
         {
@@ -111,6 +111,11 @@
           "id": "6:5339588714681877315",
           "name": "isActive",
           "type": 1
+        },
+        {
+          "id": "8:8193946014709493973",
+          "name": "screenshot",
+          "type": 23
         }
       ],
       "relations": []
@@ -124,7 +129,9 @@
   "modelVersionParserMinimum": 5,
   "retiredEntityUids": [],
   "retiredIndexUids": [],
-  "retiredPropertyUids": [],
+  "retiredPropertyUids": [
+    5539269492544820135
+  ],
   "retiredRelationUids": [],
   "version": 1
 }
