@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:equatable/equatable.dart';
+import 'package:mechanix_browser/features/browser/data/models/browser_error_info.dart';
 import 'package:webview_cef/webview_cef.dart';
 
 class BrowserTab extends Equatable {
@@ -11,6 +12,7 @@ class BrowserTab extends Equatable {
   final bool isHomePage;
   final bool isLoading;
   final bool isPrivate;
+  final BrowserErrorInfo? errorInfo;
   final Uint8List? screenshot;
 
   const BrowserTab({
@@ -21,6 +23,7 @@ class BrowserTab extends Equatable {
     required this.isHomePage,
     required this.isLoading,
     this.isPrivate = false,
+    this.errorInfo,
     this.screenshot,
   });
 
@@ -34,6 +37,8 @@ class BrowserTab extends Equatable {
     bool? isPrivate,
     Uint8List? screenshot,
     int? screenshotVersion,
+    BrowserErrorInfo? errorInfo,
+    bool clearErrorInfo = false,
   }) {
     return BrowserTab(
       id: id ?? this.id,
@@ -43,6 +48,7 @@ class BrowserTab extends Equatable {
       isHomePage: isHomePage ?? this.isHomePage,
       isLoading: isLoading ?? this.isLoading,
       isPrivate: isPrivate ?? this.isPrivate,
+      errorInfo: clearErrorInfo ? null : (errorInfo ?? this.errorInfo),
       screenshot: screenshot ?? this.screenshot,
     );
   }
@@ -56,6 +62,7 @@ class BrowserTab extends Equatable {
     isHomePage,
     isLoading,
     isPrivate,
+    errorInfo,
     screenshot,
   ];
 }

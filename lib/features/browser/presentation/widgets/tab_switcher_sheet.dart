@@ -76,14 +76,14 @@ class TabSwitcherSheet extends StatelessWidget {
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      'Private Tabs',
+                      l10n.privateTabs,
                       style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                   ] else ...[
                     Text(
-                      'Normal Tabs',
+                      l10n.normalTabs,
                       style: theme.textTheme.titleMedium?.copyWith(
                         color: colors.searchBarText,
                         fontWeight: FontWeight.bold,
@@ -112,7 +112,9 @@ class TabSwitcherSheet extends StatelessWidget {
                               ),
                               const SizedBox(height: 16),
                               Text(
-                                isPrivateView ? 'No Private Tabs' : 'No Tabs',
+                                isPrivateView
+                                    ? l10n.noPrivateTabs
+                                    : l10n.noTabs,
                                 style: theme.textTheme.bodyMedium?.copyWith(
                                   color: colors.textSecondary,
                                 ),
@@ -220,8 +222,8 @@ class TabSwitcherSheet extends StatelessWidget {
                       }
                     },
                     tooltip: isPrivateView
-                        ? 'Switch to Normal Tabs'
-                        : 'Switch to Private Tabs',
+                        ? l10n.switchToNormalTabs
+                        : l10n.switchToPrivateTabs,
                     hoverColor: colors.shortcutHoverBackground,
                     highlightColor: colors.closeButtonBackground,
                     style: IconButton.styleFrom(

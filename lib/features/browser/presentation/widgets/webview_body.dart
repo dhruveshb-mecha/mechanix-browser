@@ -4,8 +4,10 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mechanix_browser/core/utils/app_theme.dart';
 import 'package:mechanix_browser/features/browser/bloc/browser_bloc.dart';
 import 'package:mechanix_browser/features/browser/data/models/browser_tab.dart';
+import 'package:mechanix_browser/features/browser/presentation/widgets/browser_error_page.dart';
 import 'package:mechanix_browser/features/browser/presentation/widgets/home_page_body.dart';
 import 'package:mechanix_browser/features/browser/presentation/widgets/swipe_gesture_classifier.dart';
+import 'package:mechanix_browser/l10n/app_localizations.dart';
 
 class BrowserWebviewBody extends StatelessWidget {
   const BrowserWebviewBody({super.key});
@@ -53,7 +55,7 @@ class BrowserWebviewBody extends StatelessWidget {
                       valueListenable: tab.controller,
                       builder: (context, value, child) {
                         if (!tab.controller.value) {
-                          return tab.controller.loadingWidget;
+                          return Expanded(child: tab.controller.loadingWidget);
                         }
                         if (tab.isHomePage) {
                           return Expanded(child: tab.controller.webviewWidget);
@@ -74,6 +76,19 @@ class BrowserWebviewBody extends StatelessWidget {
                     child: Material(
                       color: Theme.of(context).scaffoldBackgroundColor,
                       child: const BrowserHomePageBody(),
+                    ),
+                  ),
+                // error page body
+                if (!tab.isHomePage && tab.errorInfo != null)
+                  Positioned.fill(
+                    child: BrowserGestureNavigator(
+                      tab: tab,
+                      bloc: context.read<BrowserBloc>(),
+                      child: BrowserErrorPage(
+                        tab: tab,
+                        errorInfo: tab.errorInfo!,
+                        bloc: context.read<BrowserBloc>(),
+                      ),
                     ),
                   ),
                 if (!tab.isHomePage)
@@ -212,6 +227,7 @@ class _PrivateEmptyStateView extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.extension<AppColorsExtension>()!;
+    final l10n = AppLocalizations.of(context)!;
 
     return Container(
       color: theme.scaffoldBackgroundColor,
@@ -239,7 +255,7 @@ class _PrivateEmptyStateView extends StatelessWidget {
               ),
               const SizedBox(height: 28),
               Text(
-                'Private Browsing',
+                l10n.privateBrowsing,
                 style: theme.textTheme.headlineLarge?.copyWith(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
@@ -249,7 +265,7 @@ class _PrivateEmptyStateView extends StatelessWidget {
               Container(
                 constraints: const BoxConstraints(maxWidth: 420),
                 child: Text(
-                  'Pages you view in private tabs won\'t be saved in your history, cookie store, or search history after you close all of your private tabs. Bookmarks and downloads will still be kept.',
+                  l10n.privateBrowsingDescription,
                   textAlign: TextAlign.center,
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: colors.textSecondary,

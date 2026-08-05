@@ -64,6 +64,13 @@ class BrowserMenuListSection extends StatelessWidget {
     hideMenu(); // TODO: we implement share functionality here
   }
 
+  void _handleDevTools(BuildContext context) {
+    hideMenu();
+    if (state.isInitialized) {
+      context.read<BrowserBloc>().add(const BrowserDevToolsRequested());
+    }
+  }
+
   void _handleToggleDesktopSite() {
     onToggleDesktopSite(!isDesktopSite);
   }
@@ -129,6 +136,11 @@ class BrowserMenuListSection extends StatelessWidget {
                 },
               ),
               onTap: _handleToggleDesktopSite,
+            ),
+            MenuPopupListTile(
+              icon: Icons.developer_mode_outlined,
+              label: l10n.developerTools,
+              onTap: () => _handleDevTools(context),
             ),
             MenuPopupListTile(
               icon: Icons.settings_outlined,

@@ -22,7 +22,7 @@ class BrowserHomeHeader extends StatelessWidget {
                 : Image.asset(AppImages.logo, width: 42, height: 42),
             const SizedBox(width: 14),
             Text(
-              isPrivate ? '${l10n.appTitle} (Private)' : l10n.appTitle,
+              isPrivate ? l10n.appTitlePrivate(l10n.appTitle) : l10n.appTitle,
               style: TextStyle(
                 color: Colors.white,
                 fontSize: 26,

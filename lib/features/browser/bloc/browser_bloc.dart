@@ -8,6 +8,7 @@ import 'package:mechanix_browser/core/utils/constants.dart';
 import 'package:mechanix_browser/core/utils/helpers.dart';
 import 'package:mechanix_browser/features/browser/bloc/download/download_bloc.dart';
 import 'package:mechanix_browser/features/browser/data/models/bookmark.dart';
+import 'package:mechanix_browser/features/browser/data/models/browser_error_info.dart';
 import 'package:mechanix_browser/features/browser/data/models/browser_history.dart';
 import 'package:mechanix_browser/features/browser/data/models/browser_tab.dart';
 import 'package:mechanix_browser/features/browser/data/models/tab_entity.dart';
@@ -89,6 +90,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     on<BrowserTabSwitcherModeToggled>(_onTabSwitcherModeToggled);
     on<BrowserBottomBarVisibilityChanged>(_onBottomBarVisibilityChanged);
     on<BrowserWasHiddenRequested>(_onWasHidden);
+    on<BrowserLoadErrorOccurred>(_onLoadErrorOccurred);
   }
 
   /// Creates a new tab instance with the specified [initialUrl].
@@ -115,7 +117,10 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     );
 
     final controller = WebviewManager().createWebView(
-      loading: const Center(child: CircularProgressIndicator()),
+      loading: const Align(
+        alignment: Alignment.topCenter,
+        child: CircularProgressIndicator(),
+      ),
       injectUserScripts: injectUserScripts,
     );
 
@@ -182,6 +187,17 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
       onLoadStart: (c, url) {
         AppLogger.i("onLoadStart => $url");
         add(BrowserLoadStarted(tabId: tabId));
+      },
+      onLoadError: (c, errorCode, errorText, failedUrl, isMainFrame) {
+        add(
+          BrowserLoadErrorOccurred(
+            tabId: tabId,
+            errorCode: errorCode,
+            errorText: errorText,
+            failedUrl: failedUrl,
+            isMainFrame: isMainFrame,
+          ),
+        );
       },
       onLoadEnd: (c, url) {
         add(BrowserLoadEnded(tabId: tabId));
@@ -1004,8 +1020,11 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
       );
     }
 
-    // Save URL changes to browser history only if NOT private
-    if (!isPrivate && _historyRepository != null && !isHome) {
+    // Save URL changes to browser history only if NOT private and not a load error
+    if (!isPrivate &&
+        _historyRepository != null &&
+        !isHome &&
+        updatedTab.errorInfo == null) {
       final parsedUri = Uri.tryParse(event.url.trim());
       if (parsedUri == null || !parsedUri.isAbsolute) {
         AppLogger.i(
@@ -1122,7 +1141,11 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     if (index == -1) return;
 
     final tabsList = isPrivate ? state.privateTabs : state.normalTabs;
-    final updatedTab = tabsList[index].copyWith(isLoading: true);
+    // clear error on load start
+    final updatedTab = tabsList[index].copyWith(
+      isLoading: true,
+      clearErrorInfo: true,
+    );
     final updatedTabs = List<BrowserTab>.from(tabsList);
     updatedTabs[index] = updatedTab;
 
@@ -1325,6 +1348,54 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
       }
     } catch (e, stackTrace) {
       AppLogger.w("Error setting wasHidden state: $e $stackTrace");
+    }
+  }
+
+  /// Updates the target tab state with error details for main frame navigation failures.
+  void _onLoadErrorOccurred(
+    BrowserLoadErrorOccurred event,
+    Emitter<BrowserState> emit,
+  ) {
+    try {
+      // Only handle main frame navigation errors and ignore ERR_ABORTED (-3)
+      if (!event.isMainFrame || event.errorCode == -3) {
+        return;
+      }
+
+      // Search for tab index in normal and private tab lists
+      int index = state.normalTabs.indexWhere((t) => t.id == event.tabId);
+      bool isPrivate = false;
+      if (index == -1) {
+        index = state.privateTabs.indexWhere((t) => t.id == event.tabId);
+        isPrivate = true;
+      }
+      if (index == -1) return;
+
+      final tabsList = isPrivate ? state.privateTabs : state.normalTabs;
+
+      final errorInfo = BrowserErrorInfo(
+        errorCode: event.errorCode,
+        errorText: event.errorText,
+        failedUrl: event.failedUrl,
+      );
+
+      // Update tab with error details and clear loading flag
+      final updatedTab = tabsList[index].copyWith(
+        errorInfo: errorInfo,
+        currentUrl: event.failedUrl,
+        isLoading: false,
+      );
+
+      final updatedTabs = List<BrowserTab>.from(tabsList);
+      updatedTabs[index] = updatedTab;
+
+      if (isPrivate) {
+        emit(state.copyWith(privateTabs: updatedTabs));
+      } else {
+        emit(state.copyWith(normalTabs: updatedTabs));
+      }
+    } catch (e, stackTrace) {
+      AppLogger.w("Error loading URL: $e $stackTrace");
     }
   }
 

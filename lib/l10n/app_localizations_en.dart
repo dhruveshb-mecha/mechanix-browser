@@ -21,6 +21,36 @@ class AppLocalizationsEn extends AppLocalizations {
   String get newPrivateTab => 'New Private Tab';
 
   @override
+  String appTitlePrivate(String title) {
+    return '$title (Private)';
+  }
+
+  @override
+  String get privateBrowsing => 'Private Browsing';
+
+  @override
+  String get privateBrowsingDescription =>
+      'Pages you view in private tabs won\'t be saved in your history, cookie store, or search history after you close all of your private tabs. Bookmarks and downloads will still be kept.';
+
+  @override
+  String get privateTabs => 'Private Tabs';
+
+  @override
+  String get normalTabs => 'Normal Tabs';
+
+  @override
+  String get noPrivateTabs => 'No Private Tabs';
+
+  @override
+  String get noTabs => 'No Tabs';
+
+  @override
+  String get switchToNormalTabs => 'Switch to Normal Tabs';
+
+  @override
+  String get switchToPrivateTabs => 'Switch to Private Tabs';
+
+  @override
   String get history => 'History';
 
   @override
@@ -34,6 +64,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get desktopSite => 'Desktop site';
+
+  @override
+  String get developerTools => 'Developer tools';
 
   @override
   String get settings => 'Settings';
@@ -201,4 +234,96 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get thisMonth => 'This Month';
+
+  @override
+  String errNameNotResolvedDescription(String host) {
+    return '$host took too long to respond or could not be resolved.';
+  }
+
+  @override
+  String errConnectionRefusedDescription(String host) {
+    return '$host refused to connect.';
+  }
+
+  @override
+  String errConnectionTimedOutDescription(String host) {
+    return '$host took too long to respond.';
+  }
+
+  @override
+  String get errInternetDisconnectedDescription => 'Your computer is offline.';
+
+  @override
+  String errConnectionResetDescription(String host) {
+    return 'The connection to $host was reset.';
+  }
+
+  @override
+  String errUnreachableDescription(String host) {
+    return '$host is unreachable.';
+  }
+
+  @override
+  String errDefaultDescription(String url) {
+    return 'The webpage at $url might be temporarily down or it may have moved permanently to a new web address.';
+  }
+
+  @override
+  String get errorTryHeader => 'Try:';
+
+  @override
+  String get checkNetworkConnection => 'Checking the network connection';
+
+  @override
+  String get checkUrlSpelling => 'Checking the URL or domain spelling';
+
+  @override
+  String get checkFirewallSettings => 'Checking firewall or proxy settings';
+
+  @override
+  String get retry => 'Retry';
+
+  @override
+  String get errNameNotResolvedCode => 'ERR_NAME_NOT_RESOLVED';
+
+  @override
+  String get errConnectionRefusedCode => 'ERR_CONNECTION_REFUSED';
+
+  @override
+  String get errConnectionTimedOutCode => 'ERR_CONNECTION_TIMED_OUT';
+
+  @override
+  String get errInternetDisconnectedCode => 'ERR_INTERNET_DISCONNECTED';
+
+  @override
+  String get errConnectionResetCode => 'ERR_CONNECTION_RESET';
+
+  @override
+  String get errConnectionClosedCode => 'ERR_CONNECTION_CLOSED';
+
+  @override
+  String get errAddressUnreachableCode => 'ERR_ADDRESS_UNREACHABLE';
+
+  @override
+  String get errCertCommonNameInvalidCode => 'ERR_CERT_COMMON_NAME_INVALID';
+
+  @override
+  String get errCertDateInvalidCode => 'ERR_CERT_DATE_INVALID';
+
+  @override
+  String get errCertAuthorityInvalidCode => 'ERR_CERT_AUTHORITY_INVALID';
+
+  @override
+  String get errInvalidUrlCode => 'ERR_INVALID_URL';
+
+  @override
+  String get errUnknownUrlSchemeCode => 'ERR_UNKNOWN_URL_SCHEME';
+
+  @override
+  String get errTooManyRedirectsCode => 'ERR_TOO_MANY_REDIRECTS';
+
+  @override
+  String errFailedCode(int errorCode) {
+    return 'ERR_FAILED ($errorCode)';
+  }
 }
