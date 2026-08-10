@@ -249,7 +249,7 @@ void main() {
           ),
         );
 
-        // Perform swipe below threshold (50px < 100px)
+        // Perform swipe below threshold (50px < 150px)
         final gesture = await tester.startGesture(
           const Offset(50, 200),
           pointer: 1,
@@ -258,13 +258,11 @@ void main() {
         await gesture.moveBy(const Offset(50, 0));
         await tester.pump();
 
-        // Check translation during drag (50 * 0.35 = 17.5px)
-        final transformFinder = find.byKey(
-          const Key('gesture_navigator_transform'),
+        // Check caret indicator during drag
+        final indicatorFinder = find.byKey(
+          const Key('swipe_caret_indicator'),
         );
-        expect(transformFinder, findsOneWidget);
-        final transform = tester.widget<Transform>(transformFinder);
-        expect(transform.transform.getTranslation().x, closeTo(17.5, 0.1));
+        expect(indicatorFinder, findsOneWidget);
 
         // Release drag
         await gesture.up();
@@ -276,14 +274,13 @@ void main() {
           isNot(contains(isA<BrowserGoBackRequested>())),
         );
 
-        // Ensure translation animated back to 0.0
-        final finalTransform = tester.widget<Transform>(transformFinder);
-        expect(finalTransform.transform.getTranslation().x, equals(0.0));
+        // Ensure indicator animated away
+        expect(indicatorFinder, findsNothing);
       },
     );
 
     testWidgets(
-      'Swipe translation should be clamped to maximum limit when navigation available',
+      'Swipe indicator should show caret indicator and navigate when threshold reached',
       (WidgetTester tester) async {
         canGoBackResult = true;
         canGoForwardResult = false;
@@ -320,7 +317,7 @@ void main() {
           ),
         );
 
-        // Drag large distance (300px * 0.35 = 105px > max 80px)
+        // Drag large distance (300px >= threshold 150px)
         final gesture = await tester.startGesture(
           const Offset(50, 200),
           pointer: 1,
@@ -329,10 +326,10 @@ void main() {
         await gesture.moveBy(const Offset(300, 0));
         await tester.pump();
 
-        final transform = tester.widget<Transform>(
-          find.byKey(const Key('gesture_navigator_transform')),
+        final indicatorFinder = find.byKey(
+          const Key('swipe_caret_indicator'),
         );
-        expect(transform.transform.getTranslation().x, equals(80.0));
+        expect(indicatorFinder, findsOneWidget);
 
         await gesture.up();
         await tester.pumpAndSettle();
@@ -342,7 +339,7 @@ void main() {
     );
 
     testWidgets(
-      'Swipe when navigation unavailable should restrict translation and spring back',
+      'Swipe when navigation unavailable should display disabled indicator and not navigate',
       (WidgetTester tester) async {
         canGoBackResult = false;
         canGoForwardResult = false;
@@ -387,11 +384,10 @@ void main() {
         await gesture.moveBy(const Offset(300, 0));
         await tester.pump();
 
-        // With unavailable resistance (0.05) and clamp (12.0), translation for 300px drag (300 * 0.05 = 15.0) should be clamped to 12.0
-        final transform = tester.widget<Transform>(
-          find.byKey(const Key('gesture_navigator_transform')),
+        final indicatorFinder = find.byKey(
+          const Key('swipe_caret_indicator'),
         );
-        expect(transform.transform.getTranslation().x, equals(12.0));
+        expect(indicatorFinder, findsOneWidget);
 
         await gesture.up();
         await tester.pumpAndSettle();

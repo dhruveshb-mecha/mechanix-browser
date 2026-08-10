@@ -748,7 +748,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
 
       for (final tab in tabsList) {
         try {
-          await _disposeOrDeferController(tab.controller);
+          unawaited(_disposeOrDeferController(tab.controller));
         } catch (e, stackTrace) {
           AppLogger.e("Error closing controller", error: e, stack: stackTrace);
         }

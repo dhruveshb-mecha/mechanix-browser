@@ -6,14 +6,14 @@ void main() {
     test('large right swipe -> back', () {
       final direction = SwipeGestureClassifier.classify(
         startPosition: const Offset(10, 100),
-        endPosition: const Offset(120, 100),
+        endPosition: const Offset(170, 100),
       );
       expect(direction, SwipeDirection.back);
     });
 
     test('large left swipe -> forward', () {
       final direction = SwipeGestureClassifier.classify(
-        startPosition: const Offset(120, 100),
+        startPosition: const Offset(170, 100),
         endPosition: const Offset(10, 100),
       );
       expect(direction, SwipeDirection.forward);

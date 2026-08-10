@@ -52,221 +52,240 @@ class TabSwitcherSheet extends StatelessWidget {
           height: targetHeight,
           color: sheetBackgroundColor,
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-          child: Column(
+          child: Stack(
             children: [
-              // Drag handle
-              Container(
-                width: 36,
-                height: 5,
-                decoration: BoxDecoration(
-                  color: colors.dragHandle,
-                  borderRadius: BorderRadius.circular(2.5),
-                ),
-              ),
-              const SizedBox(height: 12),
-              // Title indicating section
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
+              Column(
                 children: [
-                  if (isPrivateView) ...[
-                    Icon(
-                      Icons.visibility_off_rounded,
-                      size: 16,
-                      // color: colors.accentActive,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      l10n.privateTabs,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ] else ...[
-                    Text(
-                      l10n.normalTabs,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        color: colors.searchBarText,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-              const SizedBox(height: 16),
-              // Tab grid
-              Flexible(
-                child: tabList.isEmpty
-                    ? Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 48.0),
-                        child: Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                isPrivateView
-                                    ? Icons.visibility_off_rounded
-                                    : Icons.public,
-                                size: 48,
-                                color: colors.textTertiary,
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                isPrivateView
-                                    ? l10n.noPrivateTabs
-                                    : l10n.noTabs,
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  color: colors.textSecondary,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      )
-                    : LayoutBuilder(
-                        builder: (context, constraints) {
-                          const crossAxisSpacing = 16.0;
-                          const mainAxisSpacing = 16.0;
-                          const childAspectRatio = 0.75;
-                          const columns = 2;
-
-                          final totalSpacing = crossAxisSpacing * (columns - 1);
-                          final itemWidth =
-                              (constraints.maxWidth - totalSpacing) / columns;
-                          final itemHeight = itemWidth / childAspectRatio;
-
-                          final rowCount = (tabList.length / columns).ceil();
-                          final gridHeight =
-                              rowCount * itemHeight +
-                              (rowCount > 0
-                                  ? (rowCount - 1) * mainAxisSpacing
-                                  : 0);
-
-                          return SingleChildScrollView(
-                            padding: const EdgeInsets.only(bottom: 80),
-                            child: SizedBox(
-                              height: gridHeight,
-                              child: Stack(
-                                children: List.generate(tabList.length, (
-                                  index,
-                                ) {
-                                  final tab = tabList[index];
-                                  final isActive = index == activeIndex;
-
-                                  final row = index ~/ columns;
-                                  final col = index % columns;
-
-                                  final left =
-                                      col * (itemWidth + crossAxisSpacing);
-                                  final top =
-                                      row * (itemHeight + mainAxisSpacing);
-
-                                  return AnimatedPositioned(
-                                    key: ValueKey('pos_${tab.id}'),
-                                    duration: const Duration(milliseconds: 300),
-                                    curve: Curves.easeInOut,
-                                    left: left,
-                                    top: top,
-                                    width: itemWidth,
-                                    height: itemHeight,
-                                    child: Dismissible(
-                                      key: ValueKey('dismiss_${tab.id}'),
-                                      direction: DismissDirection.horizontal,
-                                      onDismissed: (direction) {
-                                        bloc.add(
-                                          BrowserCloseTabRequested(tab.id),
-                                        );
-                                      },
-                                      child: TabCardItem(
-                                        tab: tab,
-                                        isActive: isActive,
-                                        onTap: () {
-                                          bloc.add(
-                                            BrowserSwitchTabRequested(tab.id),
-                                          );
-                                          Navigator.pop(context);
-                                        },
-                                        onClose: () {
-                                          bloc.add(
-                                            BrowserCloseTabRequested(tab.id),
-                                          );
-                                        },
-                                      ),
-                                    ),
-                                  );
-                                }),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  // Toggle normal and private modes
-                  IconButton(
-                    onPressed: () {
-                      final targetIsPrivate = !isPrivateView;
-                      final targetTabs = targetIsPrivate
-                          ? state.privateTabs
-                          : state.normalTabs;
-                      if (targetTabs.isEmpty) {
-                        bloc.add(
-                          BrowserNewTabRequested(isPrivate: targetIsPrivate),
-                        );
-                        Navigator.pop(context);
-                      } else {
-                        bloc.add(const BrowserTabSwitcherModeToggled());
-                      }
-                    },
-                    tooltip: isPrivateView
-                        ? l10n.switchToNormalTabs
-                        : l10n.switchToPrivateTabs,
-                    hoverColor: colors.shortcutHoverBackground,
-                    highlightColor: colors.closeButtonBackground,
-                    style: IconButton.styleFrom(
-                      minimumSize: const Size(48, 48),
-                      padding: EdgeInsets.zero,
-                    ),
-                    icon: Image.asset(
-                      AppImages.incognitoImage,
-                      width: 24,
-                      height: 24,
-                      color: colors.searchBarText,
+                  // Drag handle
+                  Container(
+                    width: 36,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: colors.dragHandle,
+                      borderRadius: BorderRadius.circular(2.5),
                     ),
                   ),
-                  // Action Buttons (New Private Tab if private list is empty/active, otherwise Close All)
+                  const SizedBox(height: 12),
+                  // Title indicating section
                   Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      if (tabList.isNotEmpty)
-                        TextButton(
-                          onPressed: () {
-                            bloc.add(const BrowserCloseAllTabsRequested());
-                            Navigator.pop(context);
-                          },
-                          style: TextButton.styleFrom(
-                            foregroundColor: colors.searchBarText,
-                            backgroundColor: colors.popupBottomButtonBackground,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 20,
-                              vertical: 12,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                          child: Text(
-                            l10n.closeAll,
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              fontWeight: FontWeight.w600,
-                            ),
+                      if (isPrivateView) ...[
+                        Icon(
+                          Icons.visibility_off_rounded,
+                          size: 16,
+                          // color: colors.accentActive,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          l10n.privateTabs,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
+                      ] else ...[
+                        Text(
+                          l10n.normalTabs,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            color: colors.searchBarText,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
                     ],
                   ),
+                  const SizedBox(height: 16),
+                  // Tab grid
+                  Expanded(
+                    child: tabList.isEmpty
+                        ? Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 48.0),
+                            child: Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    isPrivateView
+                                        ? Icons.visibility_off_rounded
+                                        : Icons.public,
+                                    size: 48,
+                                    color: colors.textTertiary,
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    isPrivateView
+                                        ? l10n.noPrivateTabs
+                                        : l10n.noTabs,
+                                    style: theme.textTheme.bodyMedium?.copyWith(
+                                      color: colors.textSecondary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          )
+                        : LayoutBuilder(
+                            builder: (context, constraints) {
+                              const crossAxisSpacing = 16.0;
+                              const mainAxisSpacing = 16.0;
+                              const childAspectRatio = 0.75;
+                              const columns = 2;
+
+                              final totalSpacing =
+                                  crossAxisSpacing * (columns - 1);
+                              final itemWidth =
+                                  (constraints.maxWidth - totalSpacing) /
+                                  columns;
+                              final itemHeight = itemWidth / childAspectRatio;
+
+                              final rowCount = (tabList.length / columns)
+                                  .ceil();
+                              final gridHeight =
+                                  rowCount * itemHeight +
+                                  (rowCount > 0
+                                      ? (rowCount - 1) * mainAxisSpacing
+                                      : 0);
+
+                              return SingleChildScrollView(
+                                padding: const EdgeInsets.only(bottom: 80),
+                                child: SizedBox(
+                                  height: gridHeight,
+                                  child: Stack(
+                                    children: List.generate(tabList.length, (
+                                      index,
+                                    ) {
+                                      final tab = tabList[index];
+                                      final isActive = index == activeIndex;
+
+                                      final row = index ~/ columns;
+                                      final col = index % columns;
+
+                                      final left =
+                                          col * (itemWidth + crossAxisSpacing);
+                                      final top =
+                                          row * (itemHeight + mainAxisSpacing);
+
+                                      return AnimatedPositioned(
+                                        key: ValueKey('pos_${tab.id}'),
+                                        duration: const Duration(
+                                          milliseconds: 300,
+                                        ),
+                                        curve: Curves.easeInOut,
+                                        left: left,
+                                        top: top,
+                                        width: itemWidth,
+                                        height: itemHeight,
+                                        child: Dismissible(
+                                          key: ValueKey('dismiss_${tab.id}'),
+                                          direction:
+                                              DismissDirection.horizontal,
+                                          onDismissed: (direction) {
+                                            bloc.add(
+                                              BrowserCloseTabRequested(tab.id),
+                                            );
+                                          },
+                                          child: TabCardItem(
+                                            tab: tab,
+                                            isActive: isActive,
+                                            onTap: () {
+                                              bloc.add(
+                                                BrowserSwitchTabRequested(
+                                                  tab.id,
+                                                ),
+                                              );
+                                              Navigator.pop(context);
+                                            },
+                                            onClose: () {
+                                              bloc.add(
+                                                BrowserCloseTabRequested(
+                                                  tab.id,
+                                                ),
+                                              );
+                                            },
+                                          ),
+                                        ),
+                                      );
+                                    }),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                  ),
                 ],
+              ),
+              // Overlay bottom buttons
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    // Toggle normal and private modes
+                    IconButton(
+                      onPressed: () {
+                        final targetIsPrivate = !isPrivateView;
+                        final targetTabs = targetIsPrivate
+                            ? state.privateTabs
+                            : state.normalTabs;
+                        if (targetTabs.isEmpty) {
+                          bloc.add(
+                            BrowserNewTabRequested(isPrivate: targetIsPrivate),
+                          );
+                          Navigator.pop(context);
+                        } else {
+                          bloc.add(const BrowserTabSwitcherModeToggled());
+                        }
+                      },
+                      tooltip: isPrivateView
+                          ? l10n.switchToNormalTabs
+                          : l10n.switchToPrivateTabs,
+                      hoverColor: colors.shortcutHoverBackground,
+                      highlightColor: colors.closeButtonBackground,
+                      style: IconButton.styleFrom(
+                        backgroundColor: colors.panelBackground,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        minimumSize: const Size(48, 48),
+                        padding: EdgeInsets.zero,
+                      ),
+                      icon: Image.asset(
+                        AppImages.incognitoImage,
+                        width: 24,
+                        height: 24,
+                        color: colors.searchBarText,
+                      ),
+                    ),
+                    // Action Buttons (Close All)
+                    if (tabList.isNotEmpty)
+                      TextButton(
+                        onPressed: () {
+                          bloc.add(const BrowserCloseAllTabsRequested());
+                          Navigator.pop(context);
+                        },
+                        style: TextButton.styleFrom(
+                          foregroundColor: colors.searchBarText,
+                          backgroundColor: colors.panelBackground,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 12,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: Text(
+                          l10n.closeAll,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ],
           ),
