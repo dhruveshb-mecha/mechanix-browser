@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mechanix_browser/core/utils/app_theme.dart';
+import 'package:mechanix_browser/features/browser/bloc/browser_bloc.dart';
 import 'package:mechanix_browser/features/browser/bloc/download/browser_download.dart';
 import 'package:mechanix_browser/features/browser/bloc/download/download_bloc.dart';
 import 'package:mechanix_browser/features/browser/bloc/download/download_service.dart';
@@ -53,6 +54,15 @@ class DownloadItemCard extends StatelessWidget {
                         style: theme.textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.bold,
                           color: colors.searchBarText,
+                          decoration:
+                              (download.status == DownloadStatus.paused ||
+                                  download.status == DownloadStatus.failed ||
+                                  download.status ==
+                                      DownloadStatus.interrupted ||
+                                  download.status == DownloadStatus.cancelled)
+                              ? TextDecoration.lineThrough
+                              : TextDecoration.none,
+                          decorationColor: colors.searchBarText,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -68,9 +78,7 @@ class DownloadItemCard extends StatelessWidget {
             ),
             if (download.status == DownloadStatus.downloading ||
                 download.status == DownloadStatus.paused ||
-                download.status == DownloadStatus.pending ||
-                download.status == DownloadStatus.failed ||
-                download.status == DownloadStatus.cancelled) ...[
+                download.status == DownloadStatus.pending) ...[
               const SizedBox(height: 12),
               DownloadProgressBar(download: download),
             ],
@@ -119,6 +127,30 @@ class _DownloadMetaText extends StatelessWidget {
       );
     }
 
+    if (download.status == DownloadStatus.interrupted) {
+      return RichText(
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        text: TextSpan(
+          style: theme.textTheme.bodySmall?.copyWith(),
+          children: [
+            TextSpan(text: '${download.domain} · '),
+            TextSpan(
+              text: l10n.interrupted,
+              style: const TextStyle(
+                color: Color(0xFFF0A020),
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            TextSpan(
+              text:
+                  ' · ${l10n.downloadProgressOf(download.formattedReceived, download.formattedSize)}',
+            ),
+          ],
+        ),
+      );
+    }
+
     return Text(
       download.metaText,
       style: theme.textTheme.bodySmall?.copyWith(color: colors.textSecondary),
@@ -133,24 +165,66 @@ class _DownloadActionButtons extends StatelessWidget {
 
   const _DownloadActionButtons({required this.download});
 
+  void _showDeleteDialog(BuildContext context) {
+    final targetId = download.id != 0 ? download.id : download.downloadId;
+    final l10n = AppLocalizations.of(context)!;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l10n.removeDownloadTitle),
+        content: Text(l10n.removeDownloadDialogContent(download.filename)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(l10n.cancel),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              context.read<DownloadBloc>().add(
+                DownloadRemoveRequested(targetId, deleteFile: false),
+              );
+            },
+            child: Text(l10n.removeHistoryOnly),
+          ),
+          TextButton(
+            style: TextButton.styleFrom(
+              foregroundColor: const Color(0xFFE54D42),
+            ),
+            onPressed: () {
+              Navigator.pop(ctx);
+              context.read<DownloadBloc>().add(
+                DownloadRemoveRequested(targetId, deleteFile: true),
+              );
+            },
+            child: Text(l10n.deleteFileAndHistory),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final bloc = context.read<DownloadBloc>();
+    final browserBloc = context.read<BrowserBloc>();
     final l10n = AppLocalizations.of(context)!;
+    final activeController = browserBloc.state.activeTab?.controller;
+    final targetId = download.id != 0 ? download.id : download.downloadId;
 
-    if (download.status == DownloadStatus.downloading) {
+    if (download.status == DownloadStatus.downloading ||
+        download.status == DownloadStatus.pending) {
       return Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           _DownloadActionButton(
             icon: Icons.pause_rounded,
-            onPressed: () =>
-                bloc.add(DownloadPauseRequested(download.downloadId)),
+            onPressed: () => bloc.add(DownloadPauseRequested(targetId)),
           ),
           _DownloadActionButton(
             icon: Icons.close_rounded,
-            onPressed: () =>
-                bloc.add(DownloadCancelRequested(download.downloadId)),
+            onPressed: () => bloc.add(DownloadCancelRequested(targetId)),
           ),
         ],
       );
@@ -162,13 +236,33 @@ class _DownloadActionButtons extends StatelessWidget {
         children: [
           _DownloadActionButton(
             icon: Icons.play_arrow_rounded,
-            onPressed: () =>
-                bloc.add(DownloadResumeRequested(download.downloadId)),
+            onPressed: () => bloc.add(
+              DownloadResumeRequested(targetId, controller: activeController),
+            ),
           ),
           _DownloadActionButton(
             icon: Icons.close_rounded,
-            onPressed: () =>
-                bloc.add(DownloadCancelRequested(download.downloadId)),
+            onPressed: () => bloc.add(DownloadCancelRequested(targetId)),
+          ),
+        ],
+      );
+    }
+
+    if (download.status == DownloadStatus.interrupted) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _DownloadActionButton(
+            icon: Icons.refresh_rounded,
+            tooltip: l10n.resumeOrRetry,
+            onPressed: () => bloc.add(
+              DownloadResumeRequested(targetId, controller: activeController),
+            ),
+          ),
+          _DownloadActionButton(
+            icon: Icons.close_rounded,
+            tooltip: l10n.remove,
+            onPressed: () => _showDeleteDialog(context),
           ),
         ],
       );
@@ -181,12 +275,15 @@ class _DownloadActionButtons extends StatelessWidget {
         children: [
           _DownloadActionButton(
             icon: Icons.refresh_rounded,
-            onPressed: () => bloc.add(DownloadRetryRequested(download)),
+            tooltip: l10n.retry,
+            onPressed: () => bloc.add(
+              DownloadRetryRequested(download, controller: activeController),
+            ),
           ),
           _DownloadActionButton(
             icon: Icons.close_rounded,
-            onPressed: () =>
-                bloc.add(DownloadRemoveRequested(download.downloadId)),
+            tooltip: l10n.remove,
+            onPressed: () => _showDeleteDialog(context),
           ),
         ],
       );
@@ -204,8 +301,8 @@ class _DownloadActionButtons extends StatelessWidget {
         ),
         _DownloadActionButton(
           icon: Icons.close_rounded,
-          onPressed: () =>
-              bloc.add(DownloadRemoveRequested(download.downloadId)),
+          tooltip: l10n.remove,
+          onPressed: () => _showDeleteDialog(context),
         ),
       ],
     );

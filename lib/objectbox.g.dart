@@ -16,6 +16,7 @@ import 'package:objectbox_flutter_libs/objectbox_flutter_libs.dart';
 
 import 'features/browser/data/models/bookmark.dart';
 import 'features/browser/data/models/browser_history.dart';
+import 'features/browser/data/models/download_entity.dart';
 import 'features/browser/data/models/tab_entity.dart';
 
 export 'package:objectbox/objectbox.dart'; // so that callers only have to import this file
@@ -159,6 +160,82 @@ final _entities = <obx_int.ModelEntity>[
     relations: <obx_int.ModelRelation>[],
     backlinks: <obx_int.ModelBacklink>[],
   ),
+  obx_int.ModelEntity(
+    id: const obx_int.IdUid(4, 7425800535876162715),
+    name: 'DownloadEntity',
+    lastPropertyId: const obx_int.IdUid(15, 9104059306806060798),
+    flags: 0,
+    properties: <obx_int.ModelProperty>[
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(1, 5661947160554001594),
+        name: 'id',
+        type: 6,
+        flags: 1,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(2, 284254951092165295),
+        name: 'cefDownloadId',
+        type: 6,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(3, 8957443302556014527),
+        name: 'url',
+        type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(4, 5317938980948292364),
+        name: 'fileName',
+        type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(5, 3570753595358915978),
+        name: 'filePath',
+        type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(7, 5041706356719335629),
+        name: 'totalBytes',
+        type: 6,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(8, 911878390475061205),
+        name: 'downloadedBytes',
+        type: 6,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(9, 2359168459687173526),
+        name: 'statusIndex',
+        type: 6,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(10, 7673114897209574207),
+        name: 'createdAt',
+        type: 6,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(12, 7674189934964459086),
+        name: 'completedAt',
+        type: 6,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(15, 9104059306806060798),
+        name: 'errorMessage',
+        type: 9,
+        flags: 0,
+      ),
+    ],
+    relations: <obx_int.ModelRelation>[],
+    backlinks: <obx_int.ModelBacklink>[],
+  ),
 ];
 
 /// Shortcut for [obx.Store.new] that passes [getObjectBoxModel] and for Flutter
@@ -204,13 +281,19 @@ obx_int.ModelDefinition getObjectBoxModel() {
     // Typically, this is done with `dart run build_runner build`.
     generatorVersion: obx_int.GeneratorVersion.v2025_12_16,
     entities: _entities,
-    lastEntityId: const obx_int.IdUid(3, 1923416986273577909),
+    lastEntityId: const obx_int.IdUid(4, 7425800535876162715),
     lastIndexId: const obx_int.IdUid(0, 0),
     lastRelationId: const obx_int.IdUid(0, 0),
     lastSequenceId: const obx_int.IdUid(0, 0),
     retiredEntityUids: const [],
     retiredIndexUids: const [],
-    retiredPropertyUids: const [5539269492544820135],
+    retiredPropertyUids: const [
+      5539269492544820135,
+      3058536367917705484,
+      7868234118940166174,
+      2557721577696236183,
+      8987975594118788200,
+    ],
     retiredRelationUids: const [],
     modelVersion: 5,
     modelVersionParserMinimum: 5,
@@ -416,6 +499,109 @@ obx_int.ModelDefinition getObjectBoxModel() {
         return object;
       },
     ),
+    DownloadEntity: obx_int.EntityDefinition<DownloadEntity>(
+      model: _entities[3],
+      toOneRelations: (DownloadEntity object) => [],
+      toManyRelations: (DownloadEntity object) => {},
+      getId: (DownloadEntity object) => object.id,
+      setId: (DownloadEntity object, int id) {
+        object.id = id;
+      },
+      objectToFB: (DownloadEntity object, fb.Builder fbb) {
+        final urlOffset = fbb.writeString(object.url);
+        final fileNameOffset = fbb.writeString(object.fileName);
+        final filePathOffset = fbb.writeString(object.filePath);
+        final errorMessageOffset = object.errorMessage == null
+            ? null
+            : fbb.writeString(object.errorMessage!);
+        fbb.startTable(16);
+        fbb.addInt64(0, object.id);
+        fbb.addInt64(1, object.cefDownloadId);
+        fbb.addOffset(2, urlOffset);
+        fbb.addOffset(3, fileNameOffset);
+        fbb.addOffset(4, filePathOffset);
+        fbb.addInt64(6, object.totalBytes);
+        fbb.addInt64(7, object.downloadedBytes);
+        fbb.addInt64(8, object.statusIndex);
+        fbb.addInt64(9, object.createdAt);
+        fbb.addInt64(11, object.completedAt);
+        fbb.addOffset(14, errorMessageOffset);
+        fbb.finish(fbb.endTable());
+        return object.id;
+      },
+      objectFromFB: (obx.Store store, ByteData fbData) {
+        final buffer = fb.BufferContext(fbData);
+        final rootOffset = buffer.derefObject(0);
+        final idParam = const fb.Int64Reader().vTableGet(
+          buffer,
+          rootOffset,
+          4,
+          0,
+        );
+        final cefDownloadIdParam = const fb.Int64Reader().vTableGet(
+          buffer,
+          rootOffset,
+          6,
+          0,
+        );
+        final urlParam = const fb.StringReader(
+          asciiOptimization: true,
+        ).vTableGet(buffer, rootOffset, 8, '');
+        final fileNameParam = const fb.StringReader(
+          asciiOptimization: true,
+        ).vTableGet(buffer, rootOffset, 10, '');
+        final filePathParam = const fb.StringReader(
+          asciiOptimization: true,
+        ).vTableGet(buffer, rootOffset, 12, '');
+        final totalBytesParam = const fb.Int64Reader().vTableGet(
+          buffer,
+          rootOffset,
+          16,
+          0,
+        );
+        final downloadedBytesParam = const fb.Int64Reader().vTableGet(
+          buffer,
+          rootOffset,
+          18,
+          0,
+        );
+        final statusIndexParam = const fb.Int64Reader().vTableGet(
+          buffer,
+          rootOffset,
+          20,
+          0,
+        );
+        final createdAtParam = const fb.Int64Reader().vTableGet(
+          buffer,
+          rootOffset,
+          22,
+          0,
+        );
+        final completedAtParam = const fb.Int64Reader().vTableGetNullable(
+          buffer,
+          rootOffset,
+          26,
+        );
+        final errorMessageParam = const fb.StringReader(
+          asciiOptimization: true,
+        ).vTableGetNullable(buffer, rootOffset, 32);
+        final object = DownloadEntity(
+          id: idParam,
+          cefDownloadId: cefDownloadIdParam,
+          url: urlParam,
+          fileName: fileNameParam,
+          filePath: filePathParam,
+          totalBytes: totalBytesParam,
+          downloadedBytes: downloadedBytesParam,
+          statusIndex: statusIndexParam,
+          createdAt: createdAtParam,
+          completedAt: completedAtParam,
+          errorMessage: errorMessageParam,
+        );
+
+        return object;
+      },
+    ),
   };
 
   return obx_int.ModelDefinition(model, bindings);
@@ -517,5 +703,63 @@ class TabEntity_ {
   /// See [TabEntity.screenshot].
   static final screenshot = obx.QueryByteVectorProperty<TabEntity>(
     _entities[2].properties[6],
+  );
+}
+
+/// [DownloadEntity] entity fields to define ObjectBox queries.
+class DownloadEntity_ {
+  /// See [DownloadEntity.id].
+  static final id = obx.QueryIntegerProperty<DownloadEntity>(
+    _entities[3].properties[0],
+  );
+
+  /// See [DownloadEntity.cefDownloadId].
+  static final cefDownloadId = obx.QueryIntegerProperty<DownloadEntity>(
+    _entities[3].properties[1],
+  );
+
+  /// See [DownloadEntity.url].
+  static final url = obx.QueryStringProperty<DownloadEntity>(
+    _entities[3].properties[2],
+  );
+
+  /// See [DownloadEntity.fileName].
+  static final fileName = obx.QueryStringProperty<DownloadEntity>(
+    _entities[3].properties[3],
+  );
+
+  /// See [DownloadEntity.filePath].
+  static final filePath = obx.QueryStringProperty<DownloadEntity>(
+    _entities[3].properties[4],
+  );
+
+  /// See [DownloadEntity.totalBytes].
+  static final totalBytes = obx.QueryIntegerProperty<DownloadEntity>(
+    _entities[3].properties[5],
+  );
+
+  /// See [DownloadEntity.downloadedBytes].
+  static final downloadedBytes = obx.QueryIntegerProperty<DownloadEntity>(
+    _entities[3].properties[6],
+  );
+
+  /// See [DownloadEntity.statusIndex].
+  static final statusIndex = obx.QueryIntegerProperty<DownloadEntity>(
+    _entities[3].properties[7],
+  );
+
+  /// See [DownloadEntity.createdAt].
+  static final createdAt = obx.QueryIntegerProperty<DownloadEntity>(
+    _entities[3].properties[8],
+  );
+
+  /// See [DownloadEntity.completedAt].
+  static final completedAt = obx.QueryIntegerProperty<DownloadEntity>(
+    _entities[3].properties[9],
+  );
+
+  /// See [DownloadEntity.errorMessage].
+  static final errorMessage = obx.QueryStringProperty<DownloadEntity>(
+    _entities[3].properties[10],
   );
 }

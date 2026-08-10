@@ -13,6 +13,9 @@ import 'package:mechanix_browser/features/browser/data/repositories/history_repo
 import 'package:mechanix_browser/l10n/app_localizations.dart';
 import 'package:show_fps/show_fps.dart';
 
+import 'package:mechanix_browser/features/browser/data/repositories/download_repository.dart';
+import 'package:mechanix_browser/features/browser/data/repositories/download_repository_impl.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await ObjectBoxService.initialize();
@@ -32,10 +35,17 @@ class MyApp extends StatelessWidget {
         RepositoryProvider<HistoryRepository>(
           create: (context) => HistoryRepositoryImpl(),
         ),
+        RepositoryProvider<DownloadRepository>(
+          create: (context) => DownloadRepositoryImpl(),
+        ),
       ],
       child: MultiBlocProvider(
         providers: [
-          BlocProvider<DownloadBloc>(create: (context) => DownloadBloc()),
+          BlocProvider<DownloadBloc>(
+            create: (context) => DownloadBloc(
+              repository: context.read<DownloadRepository>(),
+            )..add(const DownloadInitializeRequested()),
+          ),
           BlocProvider<BrowserBloc>(
             create: (context) =>
                 BrowserBloc(downloadBloc: context.read<DownloadBloc>()),

@@ -441,6 +441,84 @@ abstract class AppLocalizations {
   /// **'Open Folder'**
   String get openFolder;
 
+  /// Dialog title for clearing download records
+  ///
+  /// In en, this message translates to:
+  /// **'Clear Downloads'**
+  String get clearDownloadsTitle;
+
+  /// Dialog content explanation for clearing downloads
+  ///
+  /// In en, this message translates to:
+  /// **'Do you want to clear download records from history or also delete downloaded files from disk?'**
+  String get clearDownloadsDialogContent;
+
+  /// Button label to clear download history without deleting files
+  ///
+  /// In en, this message translates to:
+  /// **'Clear History Only'**
+  String get clearHistoryOnly;
+
+  /// Button label to delete files from disk and history records
+  ///
+  /// In en, this message translates to:
+  /// **'Delete Files & History'**
+  String get deleteFilesAndHistory;
+
+  /// Dialog title for removing a single download
+  ///
+  /// In en, this message translates to:
+  /// **'Remove Download'**
+  String get removeDownloadTitle;
+
+  /// Dialog content for removing a single download
+  ///
+  /// In en, this message translates to:
+  /// **'Do you want to remove \"{filename}\" from history or delete the downloaded file from disk?'**
+  String removeDownloadDialogContent(String filename);
+
+  /// Button label to remove single download from history only
+  ///
+  /// In en, this message translates to:
+  /// **'Remove History Only'**
+  String get removeHistoryOnly;
+
+  /// Button label to delete single file from disk and history
+  ///
+  /// In en, this message translates to:
+  /// **'Delete File & History'**
+  String get deleteFileAndHistory;
+
+  /// Tooltip for resuming or retrying an interrupted download
+  ///
+  /// In en, this message translates to:
+  /// **'Resume / Retry'**
+  String get resumeOrRetry;
+
+  /// Tooltip for removing a download
+  ///
+  /// In en, this message translates to:
+  /// **'Remove'**
+  String get remove;
+
+  /// Download status text for pending downloads
+  ///
+  /// In en, this message translates to:
+  /// **'Pending'**
+  String get pending;
+
+  /// Download status text for interrupted downloads
+  ///
+  /// In en, this message translates to:
+  /// **'Interrupted'**
+  String get interrupted;
+
+  /// Download status text for paused downloads
+  ///
+  /// In en, this message translates to:
+  /// **'Paused'**
+  String get paused;
+
   /// Download status text for failed downloads
   ///
   /// In en, this message translates to:
@@ -680,6 +758,66 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'ERR_FAILED ({errorCode})'**
   String errFailedCode(int errorCode);
+
+  /// Error message when download history initialization fails
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to initialize download history'**
+  String get downloadInitError;
+
+  /// Error message when download fails to start
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to start download'**
+  String get downloadStartError;
+
+  /// Error message when download cancellation fails
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to cancel download'**
+  String get downloadCancelError;
+
+  /// Error message when download pause fails
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to pause download'**
+  String get downloadPauseError;
+
+  /// Error message when download resume fails
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to resume download'**
+  String get downloadResumeError;
+
+  /// Error message when download removal fails
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to remove download'**
+  String get downloadRemoveError;
+
+  /// Error message when download retry fails
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to retry download'**
+  String get downloadRetryError;
+
+  /// Error message when download restart fails
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to restart download'**
+  String get downloadRestartError;
+
+  /// Error message when clearing downloads fails
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to clear completed downloads'**
+  String get downloadClearError;
+
+  /// Progress text showing formatted bytes received out of total size
+  ///
+  /// In en, this message translates to:
+  /// **'{received} of {total}'**
+  String downloadProgressOf(String received, String total);
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

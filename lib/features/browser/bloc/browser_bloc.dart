@@ -6,6 +6,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mechanix_browser/core/utils/app_logger.dart';
 import 'package:mechanix_browser/core/utils/constants.dart';
 import 'package:mechanix_browser/core/utils/helpers.dart';
+import 'package:mechanix_browser/features/browser/bloc/download/browser_download.dart';
 import 'package:mechanix_browser/features/browser/bloc/download/download_bloc.dart';
 import 'package:mechanix_browser/features/browser/data/models/bookmark.dart';
 import 'package:mechanix_browser/features/browser/data/models/browser_error_info.dart';
@@ -126,7 +127,11 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
 
     final tabId =
         id ?? 'tab_${DateTime.now().millisecondsSinceEpoch}_${_tabIdCounter++}';
-    final listener = _createEventListenerForTab(tabId, controller);
+    final listener = _createEventListenerForTab(
+      tabId,
+      controller,
+      isPrivate: isPrivate,
+    );
     controller.setWebviewListener(listener);
     if (load) {
       controller.initialize(initialUrl, isPrivate: isPrivate);
@@ -147,8 +152,9 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
   /// Sets up javascript communication channels and propagates load states, title, and url events to the bloc.
   WebviewEventsListener _createEventListenerForTab(
     String tabId,
-    WebViewController controller,
-  ) {
+    WebViewController controller, {
+    bool isPrivate = false,
+  }) {
     return WebviewEventsListener(
       onTitleChanged: (t) {
         add(BrowserTitleChanged(tabId: tabId, title: t));
@@ -243,6 +249,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
                 contentDisposition: contentDisposition,
                 mimeType: mimeType,
                 totalBytes: totalBytes,
+                isPrivate: isPrivate,
               ),
             );
           },
@@ -315,9 +322,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
             tabEntity.url.isEmpty ? AppConstants.homepageUrl : tabEntity.url,
             id: tabEntity.tabId,
             load: tabEntity.isActive,
-          ).copyWith(
-            screenshot: tabEntity.screenshot,
-          );
+          ).copyWith(screenshot: tabEntity.screenshot);
           tabs.add(tab);
           if (tabEntity.isActive) {
             activeTabIndex = i;
@@ -552,13 +557,13 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
       final index = tabsList.indexWhere((t) => t.id == tabId);
       if (index == -1) return;
       final tabToClose = tabsList[index];
-      
+
       /// If only one tab remains in that list
       if (tabsList.length == 1) {
         final activeTab = tabsList[index];
         if (isPrivate) {
           // For private tabs, closing the last one makes the collection empty and displays the private home splash page.
-          unawaited(activeTab.controller.dispose());
+          unawaited(_disposeOrDeferController(activeTab.controller));
           emit(
             state.copyWith(privateTabs: const [], activePrivateTabIndex: -1),
           );
@@ -586,7 +591,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
         return;
       }
 
-      unawaited(tabToClose.controller.dispose());
+      unawaited(_disposeOrDeferController(tabToClose.controller));
 
       final updatedTabs = List<BrowserTab>.from(tabsList)..removeAt(index);
 
@@ -742,7 +747,11 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
       final tabsList = isPrivate ? state.privateTabs : state.normalTabs;
 
       for (final tab in tabsList) {
-        await tab.controller.dispose();
+        try {
+          await _disposeOrDeferController(tab.controller);
+        } catch (e, stackTrace) {
+          AppLogger.e("Error closing controller", error: e, stack: stackTrace);
+        }
       }
 
       if (isPrivate) {
@@ -764,6 +773,35 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
       }
     } catch (e, stackTrace) {
       AppLogger.e("Error closing tabs", error: e, stack: stackTrace);
+    }
+  }
+
+  /// Safely disposes of a tab's controller or defers disposal until active downloads finish.
+  Future<void> _disposeOrDeferController(WebViewController controller) async {
+    if (!controller.value) return;
+
+    final hasActiveDownload =
+        downloadBloc?.state.downloads.any(
+          (d) =>
+              (d.status == DownloadStatus.downloading ||
+                  d.status == DownloadStatus.pending) &&
+              downloadBloc?.isControllerActive(controller) == true,
+        ) ??
+        false;
+
+    if (hasActiveDownload) {
+      AppLogger.i(
+        '[BrowserBloc] Tab closed during active download. Hiding webview (wasHidden=true) and deferring dispose until download finishes.',
+      );
+      try {
+        await controller.setClientFocus(false);
+        await controller.wasHidden(true);
+      } catch (e) {
+        AppLogger.e('Error setting wasHidden on background download tab: $e');
+      }
+      downloadBloc?.registerPendingDisposeController(controller);
+    } else {
+      await controller.dispose();
     }
   }
 
@@ -806,9 +844,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
         final index = tabsList.indexWhere((t) => t.id == tab.id);
 
         if (index != -1) {
-          final updatedTab = tab.copyWith(
-            screenshot: screenshotBytes,
-          );
+          final updatedTab = tab.copyWith(screenshot: screenshotBytes);
           final updatedTabs = List<BrowserTab>.from(tabsList);
           updatedTabs[index] = updatedTab;
 
