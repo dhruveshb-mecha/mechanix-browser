@@ -1,0 +1,9 @@
+name: packaging-metadata
+version: 1.0.0
+summary: Metadata for Mechanix browser packaging
+applications:
+  - name: browser
+    folder: .
+    binary: mechanix_browser
+    description: "Browser for Mechanix OS"
+    maintainer: "Minesh Purohit <mineshp@mechasystems.com>"
