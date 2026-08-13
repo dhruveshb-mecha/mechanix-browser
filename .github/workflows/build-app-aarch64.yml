@@ -80,6 +80,19 @@ jobs:
           flutter-elinux pub get
           flutter-elinux build elinux --release
 
+      - name: Strip CEF library
+        run: |
+          set -euo pipefail
+          LIBCEF=$(find ./build/elinux -path '*/release/bundle/lib/libcef.so' -type f -print -quit)
+
+          if [ -z "$LIBCEF" ]; then
+            echo "libcef.so not found in the release bundle"
+            exit 1
+          fi
+
+          echo "Stripping $LIBCEF"
+          strip --strip-unneeded "$LIBCEF"
+
       - name: Update script permissions
         run: |
           chmod +x package-rpm.nu
