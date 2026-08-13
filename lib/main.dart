@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mechanix_browser/core/routes/app_routes.dart';
 import 'package:mechanix_browser/core/services/objectbox_service.dart';
@@ -16,15 +17,65 @@ import 'package:show_fps/show_fps.dart';
 import 'package:mechanix_browser/features/browser/data/repositories/download_repository.dart';
 import 'package:mechanix_browser/features/browser/data/repositories/download_repository_impl.dart';
 
-void main() async {
+void main(List<String> args) async {
+  final deepLinkUrl = args.isNotEmpty ? args.first : null;
+  print(deepLinkUrl);
   WidgetsFlutterBinding.ensureInitialized();
   await ObjectBoxService.initialize();
 
-  runApp(const MyApp());
+  runApp(MyApp(initialUrl: deepLinkUrl));
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class MyApp extends StatefulWidget {
+  final String? initialUrl;
+  const MyApp({super.key, this.initialUrl});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  late final BrowserBloc _browserBloc;
+  late final DownloadBloc _downloadBloc;
+  late final HistoryBloc _historyBloc;
+
+  @override
+  void initState() {
+    super.initState();
+    _downloadBloc = DownloadBloc(
+      repository: DownloadRepositoryImpl(),
+    )..add(const DownloadInitializeRequested());
+
+    _browserBloc = BrowserBloc(downloadBloc: _downloadBloc);
+
+    _historyBloc = HistoryBloc(repository: HistoryRepositoryImpl());
+
+    if (widget.initialUrl != null && widget.initialUrl!.isNotEmpty) {
+      print("----------------> initial tab isn't null so forwarding the initial url");
+      _browserBloc.add(BrowserNewTabRequested(initialUrl: widget.initialUrl));
+    }
+
+    _setupSingletonListener();
+  }
+
+  void _setupSingletonListener() {
+    const channel = BasicMessageChannel<dynamic>(
+        'com.mechanix.browser/singleton', StandardMessageCodec());
+    channel.setMessageHandler((dynamic message) async {
+      if (message is String && message.isNotEmpty) {
+        _browserBloc.add(BrowserNewTabRequested(initialUrl: message));
+      }
+      return null;
+    });
+  }
+
+  @override
+  void dispose() {
+    _browserBloc.close();
+    _downloadBloc.close();
+    _historyBloc.close();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -41,19 +92,9 @@ class MyApp extends StatelessWidget {
       ],
       child: MultiBlocProvider(
         providers: [
-          BlocProvider<DownloadBloc>(
-            create: (context) => DownloadBloc(
-              repository: context.read<DownloadRepository>(),
-            )..add(const DownloadInitializeRequested()),
-          ),
-          BlocProvider<BrowserBloc>(
-            create: (context) =>
-                BrowserBloc(downloadBloc: context.read<DownloadBloc>()),
-          ),
-          BlocProvider<HistoryBloc>(
-            create: (context) =>
-                HistoryBloc(repository: context.read<HistoryRepository>()),
-          ),
+          BlocProvider<DownloadBloc>.value(value: _downloadBloc),
+          BlocProvider<BrowserBloc>.value(value: _browserBloc),
+          BlocProvider<HistoryBloc>.value(value: _historyBloc),
         ],
         child: MaterialApp(
           onGenerateTitle: (context) => AppLocalizations.of(context)!.appTitle,

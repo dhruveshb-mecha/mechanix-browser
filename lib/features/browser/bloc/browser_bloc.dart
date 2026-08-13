@@ -309,26 +309,33 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
       );
 
       final savedTabs = _tabRepository!.getAllTabs();
-      final List<BrowserTab> tabs = [];
-      int activeTabIndex = 0;
+      final List<BrowserTab> tabs = List.from(state.normalTabs);
+      // final List<BrowserTab> tabs = [];
+      // int activeTabIndex = 0;
 
-      if (savedTabs.isEmpty) {
+      int activeTabIndex = tabs.length - 1; // Default to the last added tab (initial URL)
+
+      if (savedTabs.isEmpty && tabs.isEmpty) {
         tabs.add(_createNewTab(AppConstants.homepageUrl));
         activeTabIndex = 0;
       } else {
         for (int i = 0; i < savedTabs.length; i++) {
           final tabEntity = savedTabs[i];
+          // Check if tab already exists to avoid duplicates if necessary
           final tab = _createNewTab(
             tabEntity.url.isEmpty ? AppConstants.homepageUrl : tabEntity.url,
             id: tabEntity.tabId,
             load: tabEntity.isActive,
           ).copyWith(screenshot: tabEntity.screenshot);
           tabs.add(tab);
-          if (tabEntity.isActive) {
-            activeTabIndex = i;
+          if (tabEntity.isActive && activeTabIndex < 0) {
+            activeTabIndex = tabs.length - 1;
           }
         }
       }
+
+      // Ensure activeTabIndex is valid
+      if (activeTabIndex < 0) activeTabIndex = 0;
 
       final favorites = _bookmarkRepository!.getFavorites();
       final bookmarks = _bookmarkRepository!.getBookmarks();
@@ -474,8 +481,8 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     Emitter<BrowserState> emit,
   ) async {
     try {
-      if (!state.isInitialized) return;
-
+      // if (!state.isInitialized) return;
+      print("initial url: ${event.initialUrl}");
       final oldTab = state.activeTab;
       if (oldTab != null) {
         await _captureTabScreenshot(oldTab, emit);
