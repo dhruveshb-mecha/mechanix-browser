@@ -180,3 +180,37 @@ class BrowserBottomBarVisibilityChanged extends BrowserEvent {
   @override
   List<Object?> get props => [isVisible, isInteracting];
 }
+
+class BrowserWasHiddenRequested extends BrowserEvent {
+  final bool isHidden;
+  const BrowserWasHiddenRequested(this.isHidden);
+
+  @override
+  List<Object?> get props => [isHidden];
+}
+
+class BrowserLoadErrorOccurred extends BrowserEvent {
+  final String tabId;
+  final int errorCode;
+  final String errorText;
+  final String failedUrl;
+  final bool isMainFrame;
+
+  const BrowserLoadErrorOccurred({
+    required this.tabId,
+    required this.errorCode,
+    required this.errorText,
+    required this.failedUrl,
+    required this.isMainFrame,
+  });
+
+  @override
+  List<Object?> get props => [
+        tabId,
+        errorCode,
+        errorText,
+        failedUrl,
+        isMainFrame,
+      ];
+}
+

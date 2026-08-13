@@ -47,7 +47,7 @@ class BrowserSearchInput extends StatelessWidget {
             )
           : Icon(Icons.lock_outline, color: colors.inactiveGrey, size: 18),
       hintText: isPrivate
-          ? '${l10n.searchOrEnterAddress} (Private)'
+          ? l10n.appTitlePrivate(l10n.searchOrEnterAddress)
           : l10n.searchOrEnterAddress,
       hintStyle: WidgetStatePropertyAll(
         theme.textTheme.bodyLarge?.copyWith(color: colors.searchBarHint),

@@ -27,7 +27,7 @@ class BrowserShortcutItem extends StatelessWidget {
     final colors = theme.extension<AppColorsExtension>()!;
 
     final Widget letterChild = Text(
-      label[0],
+      label.isNotEmpty ? label[0].toUpperCase() : '',
       style: theme.textTheme.titleLarge?.copyWith(
         fontWeight: FontWeight.w800,
         color: colors.searchBarBackground,

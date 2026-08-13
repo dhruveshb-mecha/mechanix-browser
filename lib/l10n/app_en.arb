@@ -15,6 +15,47 @@
   "@newPrivateTab": {
     "description": "Menu option to open a new private tab"
   },
+  "appTitlePrivate": "{title} (Private)",
+  "@appTitlePrivate": {
+    "description": "Title of the application in private mode",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "privateBrowsing": "Private Browsing",
+  "@privateBrowsing": {
+    "description": "Title for private browsing empty state"
+  },
+  "privateBrowsingDescription": "Pages you view in private tabs won't be saved in your history, cookie store, or search history after you close all of your private tabs. Bookmarks and downloads will still be kept.",
+  "@privateBrowsingDescription": {
+    "description": "Description for private browsing empty state"
+  },
+  "privateTabs": "Private Tabs",
+  "@privateTabs": {
+    "description": "Label for private tabs section"
+  },
+  "normalTabs": "Normal Tabs",
+  "@normalTabs": {
+    "description": "Label for normal tabs section"
+  },
+  "noPrivateTabs": "No Private Tabs",
+  "@noPrivateTabs": {
+    "description": "Empty state text for private tabs"
+  },
+  "noTabs": "No Tabs",
+  "@noTabs": {
+    "description": "Empty state text for normal tabs"
+  },
+  "switchToNormalTabs": "Switch to Normal Tabs",
+  "@switchToNormalTabs": {
+    "description": "Tooltip for switching to normal tabs"
+  },
+  "switchToPrivateTabs": "Switch to Private Tabs",
+  "@switchToPrivateTabs": {
+    "description": "Tooltip for switching to private tabs"
+  },
   "history": "History",
   "@history": {
     "description": "History feature name"
@@ -34,6 +75,10 @@
   "desktopSite": "Desktop site",
   "@desktopSite": {
     "description": "Desktop site checkbox option"
+  },
+  "developerTools": "Developer tools",
+  "@developerTools": {
+    "description": "Developer tools menu option"
   },
   "settings": "Settings",
   "@settings": {
@@ -206,6 +251,63 @@
   "@openFolder": {
     "description": "Tooltip/button to open file folder"
   },
+  "clearDownloadsTitle": "Clear Downloads",
+  "@clearDownloadsTitle": {
+    "description": "Dialog title for clearing download records"
+  },
+  "clearDownloadsDialogContent": "Do you want to clear download records from history or also delete downloaded files from disk?",
+  "@clearDownloadsDialogContent": {
+    "description": "Dialog content explanation for clearing downloads"
+  },
+  "clearHistoryOnly": "Clear History Only",
+  "@clearHistoryOnly": {
+    "description": "Button label to clear download history without deleting files"
+  },
+  "deleteFilesAndHistory": "Delete Files & History",
+  "@deleteFilesAndHistory": {
+    "description": "Button label to delete files from disk and history records"
+  },
+  "removeDownloadTitle": "Remove Download",
+  "@removeDownloadTitle": {
+    "description": "Dialog title for removing a single download"
+  },
+  "removeDownloadDialogContent": "Do you want to remove \"{filename}\" from history or delete the downloaded file from disk?",
+  "@removeDownloadDialogContent": {
+    "description": "Dialog content for removing a single download",
+    "placeholders": {
+      "filename": {
+        "type": "String"
+      }
+    }
+  },
+  "removeHistoryOnly": "Remove History Only",
+  "@removeHistoryOnly": {
+    "description": "Button label to remove single download from history only"
+  },
+  "deleteFileAndHistory": "Delete File & History",
+  "@deleteFileAndHistory": {
+    "description": "Button label to delete single file from disk and history"
+  },
+  "resumeOrRetry": "Resume / Retry",
+  "@resumeOrRetry": {
+    "description": "Tooltip for resuming or retrying an interrupted download"
+  },
+  "remove": "Remove",
+  "@remove": {
+    "description": "Tooltip for removing a download"
+  },
+  "pending": "Pending",
+  "@pending": {
+    "description": "Download status text for pending downloads"
+  },
+  "interrupted": "Interrupted",
+  "@interrupted": {
+    "description": "Download status text for interrupted downloads"
+  },
+  "paused": "Paused",
+  "@paused": {
+    "description": "Download status text for paused downloads"
+  },
   "failed": "Failed",
   "@failed": {
     "description": "Download status text for failed downloads"
@@ -266,6 +368,195 @@
   "thisMonth": "This Month",
   "@thisMonth": {
     "description": "History group title for this month"
+  },
+  "errNameNotResolvedDescription": "{host} took too long to respond or could not be resolved.",
+  "@errNameNotResolvedDescription": {
+    "description": "Error description when host name cannot be resolved",
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "errConnectionRefusedDescription": "{host} refused to connect.",
+  "@errConnectionRefusedDescription": {
+    "description": "Error description when connection is refused",
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "errConnectionTimedOutDescription": "{host} took too long to respond.",
+  "@errConnectionTimedOutDescription": {
+    "description": "Error description when connection times out",
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "errInternetDisconnectedDescription": "Your computer is offline.",
+  "@errInternetDisconnectedDescription": {
+    "description": "Error description when computer is offline"
+  },
+  "errConnectionResetDescription": "The connection to {host} was reset.",
+  "@errConnectionResetDescription": {
+    "description": "Error description when connection was reset",
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "errUnreachableDescription": "{host} is unreachable.",
+  "@errUnreachableDescription": {
+    "description": "Error description when host is unreachable",
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "errDefaultDescription": "The webpage at {url} might be temporarily down or it may have moved permanently to a new web address.",
+  "@errDefaultDescription": {
+    "description": "Default web page error description",
+    "placeholders": {
+      "url": {
+        "type": "String"
+      }
+    }
+  },
+  "errorTryHeader": "Try:",
+  "@errorTryHeader": {
+    "description": "Header text for suggestions on error page"
+  },
+  "checkNetworkConnection": "Checking the network connection",
+  "@checkNetworkConnection": {
+    "description": "Suggestion bullet point on error page"
+  },
+  "checkUrlSpelling": "Checking the URL or domain spelling",
+  "@checkUrlSpelling": {
+    "description": "Suggestion bullet point on error page"
+  },
+  "checkFirewallSettings": "Checking firewall or proxy settings",
+  "@checkFirewallSettings": {
+    "description": "Suggestion bullet point on error page"
+  },
+  "retry": "Retry",
+  "@retry": {
+    "description": "Button label to retry loading page"
+  },
+  "errNameNotResolvedCode": "ERR_NAME_NOT_RESOLVED",
+  "@errNameNotResolvedCode": {
+    "description": "CEF error code string for name not resolved"
+  },
+  "errConnectionRefusedCode": "ERR_CONNECTION_REFUSED",
+  "@errConnectionRefusedCode": {
+    "description": "CEF error code string for connection refused"
+  },
+  "errConnectionTimedOutCode": "ERR_CONNECTION_TIMED_OUT",
+  "@errConnectionTimedOutCode": {
+    "description": "CEF error code string for connection timed out"
+  },
+  "errInternetDisconnectedCode": "ERR_INTERNET_DISCONNECTED",
+  "@errInternetDisconnectedCode": {
+    "description": "CEF error code string for internet disconnected"
+  },
+  "errConnectionResetCode": "ERR_CONNECTION_RESET",
+  "@errConnectionResetCode": {
+    "description": "CEF error code string for connection reset"
+  },
+  "errConnectionClosedCode": "ERR_CONNECTION_CLOSED",
+  "@errConnectionClosedCode": {
+    "description": "CEF error code string for connection closed"
+  },
+  "errAddressUnreachableCode": "ERR_ADDRESS_UNREACHABLE",
+  "@errAddressUnreachableCode": {
+    "description": "CEF error code string for address unreachable"
+  },
+  "errCertCommonNameInvalidCode": "ERR_CERT_COMMON_NAME_INVALID",
+  "@errCertCommonNameInvalidCode": {
+    "description": "CEF error code string for invalid cert common name"
+  },
+  "errCertDateInvalidCode": "ERR_CERT_DATE_INVALID",
+  "@errCertDateInvalidCode": {
+    "description": "CEF error code string for invalid cert date"
+  },
+  "errCertAuthorityInvalidCode": "ERR_CERT_AUTHORITY_INVALID",
+  "@errCertAuthorityInvalidCode": {
+    "description": "CEF error code string for invalid cert authority"
+  },
+  "errInvalidUrlCode": "ERR_INVALID_URL",
+  "@errInvalidUrlCode": {
+    "description": "CEF error code string for invalid URL"
+  },
+  "errUnknownUrlSchemeCode": "ERR_UNKNOWN_URL_SCHEME",
+  "@errUnknownUrlSchemeCode": {
+    "description": "CEF error code string for unknown URL scheme"
+  },
+  "errTooManyRedirectsCode": "ERR_TOO_MANY_REDIRECTS",
+  "@errTooManyRedirectsCode": {
+    "description": "CEF error code string for too many redirects"
+  },
+  "errFailedCode": "ERR_FAILED ({errorCode})",
+  "@errFailedCode": {
+    "description": "Fallback CEF error code string with code number",
+    "placeholders": {
+      "errorCode": {
+        "type": "int"
+      }
+    }
+  },
+  "downloadInitError": "Failed to initialize download history",
+  "@downloadInitError": {
+    "description": "Error message when download history initialization fails"
+  },
+  "downloadStartError": "Failed to start download",
+  "@downloadStartError": {
+    "description": "Error message when download fails to start"
+  },
+  "downloadCancelError": "Failed to cancel download",
+  "@downloadCancelError": {
+    "description": "Error message when download cancellation fails"
+  },
+  "downloadPauseError": "Failed to pause download",
+  "@downloadPauseError": {
+    "description": "Error message when download pause fails"
+  },
+  "downloadResumeError": "Failed to resume download",
+  "@downloadResumeError": {
+    "description": "Error message when download resume fails"
+  },
+  "downloadRemoveError": "Failed to remove download",
+  "@downloadRemoveError": {
+    "description": "Error message when download removal fails"
+  },
+  "downloadRetryError": "Failed to retry download",
+  "@downloadRetryError": {
+    "description": "Error message when download retry fails"
+  },
+  "downloadRestartError": "Failed to restart download",
+  "@downloadRestartError": {
+    "description": "Error message when download restart fails"
+  },
+  "downloadClearError": "Failed to clear completed downloads",
+  "@downloadClearError": {
+    "description": "Error message when clearing downloads fails"
+  },
+  "downloadProgressOf": "{received} of {total}",
+  "@downloadProgressOf": {
+    "description": "Progress text showing formatted bytes received out of total size",
+    "placeholders": {
+      "received": {
+        "type": "String"
+      },
+      "total": {
+        "type": "String"
+      }
+    }
   }
 }
+
+
 

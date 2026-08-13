@@ -1,12 +1,90 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mechanix_browser/core/routes/app_routes.dart';
+import 'package:mechanix_browser/core/utils/app_logger.dart';
 import 'package:mechanix_browser/core/utils/app_theme.dart';
+import 'package:mechanix_browser/features/browser/bloc/browser_bloc.dart';
+import 'package:mechanix_browser/features/browser/bloc/download/browser_download.dart';
 import 'package:mechanix_browser/features/browser/bloc/download/download_bloc.dart';
 import 'package:mechanix_browser/l10n/app_localizations.dart';
 
-class DownloadNotificationOverlay extends StatelessWidget {
+/// Overlay widget showing a temporary download notification toast at the bottom right of the browser.
+/// Automatically hides after 4 seconds of inactivity or upon user interaction.
+class DownloadNotificationOverlay extends StatefulWidget {
   const DownloadNotificationOverlay({super.key});
+
+  @override
+  State<DownloadNotificationOverlay> createState() =>
+      _DownloadNotificationOverlayState();
+}
+
+class _DownloadNotificationOverlayState
+    extends State<DownloadNotificationOverlay> {
+  Timer? _autoHideTimer;
+  bool _isVisible = false;
+  BrowserDownload? _activeToastDownload;
+  bool _initialized = false;
+
+  void _resetTimer() {
+    _autoHideTimer?.cancel();
+    _autoHideTimer = Timer(const Duration(seconds: 4), () {
+      if (mounted) {
+        setState(() {
+          _isVisible = false;
+        });
+      }
+    });
+  }
+
+  void _checkDownloadState(DownloadState state) {
+    final latest = state.lastStartedOrUpdated;
+
+    if (!_initialized) {
+      _initialized = true;
+      _activeToastDownload = latest;
+      return;
+    }
+
+    if (state.activeDownloadsCount == 0) {
+      _activeToastDownload = null;
+      if (_isVisible) {
+        _isVisible = false;
+        _autoHideTimer?.cancel();
+      }
+      return;
+    }
+
+    if (latest == null) return;
+
+    final active = _activeToastDownload;
+
+    final isNewerDownload =
+        active == null ||
+        latest.startTimestamp.isAfter(active.startTimestamp) ||
+        (latest.startTimestamp.isAtSameMomentAs(active.startTimestamp) &&
+            latest.downloadId != active.downloadId);
+
+    final isSameDownload =
+        active != null &&
+        (latest.downloadId == active.downloadId ||
+            (latest.id != 0 && active.id != 0 && latest.id == active.id));
+
+    if (isNewerDownload && latest.status == DownloadStatus.downloading) {
+      _activeToastDownload = latest;
+      _isVisible = true;
+      _resetTimer();
+    } else if (isSameDownload) {
+      _activeToastDownload = latest;
+    }
+  }
+
+  @override
+  void dispose() {
+    _autoHideTimer?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -16,10 +94,15 @@ class DownloadNotificationOverlay extends StatelessWidget {
 
     return BlocBuilder<DownloadBloc, DownloadState>(
       builder: (context, state) {
-        final activeCount = state.activeDownloadsCount;
-        if (activeCount == 0) return const SizedBox.shrink();
+        _checkDownloadState(state);
 
-        final latest = state.lastStartedOrUpdated;
+        final activeDownload = _activeToastDownload;
+
+        if (!_isVisible ||
+            state.activeDownloadsCount == 0 ||
+            activeDownload == null) {
+          return const SizedBox.shrink();
+        }
 
         return Positioned(
           bottom: 24,
@@ -29,7 +112,7 @@ class DownloadNotificationOverlay extends StatelessWidget {
             borderRadius: BorderRadius.circular(12),
             color: colors.panelBackground,
             child: InkWell(
-              onTap: () => Navigator.pushNamed(context, AppRoutes.downloads),
+              onTap: () => _openDownloads(context),
               borderRadius: BorderRadius.circular(12),
               child: Container(
                 padding: const EdgeInsets.symmetric(
@@ -62,9 +145,7 @@ class DownloadNotificationOverlay extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          latest != null
-                              ? l10n.downloadingFile(latest.filename)
-                              : l10n.downloadingFiles,
+                          l10n.downloadingFile(activeDownload.filename),
                           style: theme.textTheme.bodyMedium?.copyWith(
                             fontWeight: FontWeight.bold,
                             color: colors.searchBarText,
@@ -72,15 +153,13 @@ class DownloadNotificationOverlay extends StatelessWidget {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        if (latest != null) ...[
-                          const SizedBox(height: 2),
-                          Text(
-                            latest.formattedSpeed,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: colors.textSecondary,
-                            ),
+                        const SizedBox(height: 2),
+                        Text(
+                          activeDownload.formattedSpeed,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: colors.textSecondary,
                           ),
-                        ],
+                        ),
                       ],
                     ),
                     const SizedBox(width: 16),
@@ -97,5 +176,22 @@ class DownloadNotificationOverlay extends StatelessWidget {
         );
       },
     );
+  }
+
+  Future<void> _openDownloads(BuildContext context) async {
+    _autoHideTimer?.cancel();
+    setState(() {
+      _isVisible = false;
+    });
+    final bloc = context.read<BrowserBloc>();
+    final navigator = Navigator.of(context);
+    bloc.add(const BrowserWasHiddenRequested(true));
+    try {
+      await navigator.pushNamed(AppRoutes.downloads);
+    } catch (e) {
+      AppLogger.i('Error navigating to downloads: $e');
+    } finally {
+      bloc.add(const BrowserWasHiddenRequested(false));
+    }
   }
 }

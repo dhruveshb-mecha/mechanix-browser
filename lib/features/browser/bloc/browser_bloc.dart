@@ -6,8 +6,10 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mechanix_browser/core/utils/app_logger.dart';
 import 'package:mechanix_browser/core/utils/constants.dart';
 import 'package:mechanix_browser/core/utils/helpers.dart';
+import 'package:mechanix_browser/features/browser/bloc/download/browser_download.dart';
 import 'package:mechanix_browser/features/browser/bloc/download/download_bloc.dart';
 import 'package:mechanix_browser/features/browser/data/models/bookmark.dart';
+import 'package:mechanix_browser/features/browser/data/models/browser_error_info.dart';
 import 'package:mechanix_browser/features/browser/data/models/browser_history.dart';
 import 'package:mechanix_browser/features/browser/data/models/browser_tab.dart';
 import 'package:mechanix_browser/features/browser/data/models/tab_entity.dart';
@@ -88,6 +90,8 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     on<BrowserTabSwitcherOpened>(_onTabSwitcherOpened);
     on<BrowserTabSwitcherModeToggled>(_onTabSwitcherModeToggled);
     on<BrowserBottomBarVisibilityChanged>(_onBottomBarVisibilityChanged);
+    on<BrowserWasHiddenRequested>(_onWasHidden);
+    on<BrowserLoadErrorOccurred>(_onLoadErrorOccurred);
   }
 
   /// Creates a new tab instance with the specified [initialUrl].
@@ -114,13 +118,20 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     );
 
     final controller = WebviewManager().createWebView(
-      loading: const Center(child: CircularProgressIndicator()),
+      loading: const Align(
+        alignment: Alignment.topCenter,
+        child: CircularProgressIndicator(),
+      ),
       injectUserScripts: injectUserScripts,
     );
 
     final tabId =
         id ?? 'tab_${DateTime.now().millisecondsSinceEpoch}_${_tabIdCounter++}';
-    final listener = _createEventListenerForTab(tabId, controller);
+    final listener = _createEventListenerForTab(
+      tabId,
+      controller,
+      isPrivate: isPrivate,
+    );
     controller.setWebviewListener(listener);
     if (load) {
       controller.initialize(initialUrl, isPrivate: isPrivate);
@@ -141,8 +152,9 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
   /// Sets up javascript communication channels and propagates load states, title, and url events to the bloc.
   WebviewEventsListener _createEventListenerForTab(
     String tabId,
-    WebViewController controller,
-  ) {
+    WebViewController controller, {
+    bool isPrivate = false,
+  }) {
     return WebviewEventsListener(
       onTitleChanged: (t) {
         add(BrowserTitleChanged(tabId: tabId, title: t));
@@ -182,8 +194,18 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
         AppLogger.i("onLoadStart => $url");
         add(BrowserLoadStarted(tabId: tabId));
       },
+      onLoadError: (c, errorCode, errorText, failedUrl, isMainFrame) {
+        add(
+          BrowserLoadErrorOccurred(
+            tabId: tabId,
+            errorCode: errorCode,
+            errorText: errorText,
+            failedUrl: failedUrl,
+            isMainFrame: isMainFrame,
+          ),
+        );
+      },
       onLoadEnd: (c, url) {
-        AppLogger.i("onLoadEnd => $url");
         add(BrowserLoadEnded(tabId: tabId));
 
         c.executeJavaScript('''
@@ -227,6 +249,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
                 contentDisposition: contentDisposition,
                 mimeType: mimeType,
                 totalBytes: totalBytes,
+                isPrivate: isPrivate,
               ),
             );
           },
@@ -299,7 +322,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
             tabEntity.url.isEmpty ? AppConstants.homepageUrl : tabEntity.url,
             id: tabEntity.tabId,
             load: tabEntity.isActive,
-          );
+          ).copyWith(screenshot: tabEntity.screenshot);
           tabs.add(tab);
           if (tabEntity.isActive) {
             activeTabIndex = i;
@@ -455,6 +478,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
 
       final oldTab = state.activeTab;
       if (oldTab != null) {
+        await _captureTabScreenshot(oldTab, emit);
         if (oldTab.controller.value) {
           await oldTab.controller.setClientFocus(false);
           await oldTab.controller.wasHidden(true);
@@ -532,13 +556,14 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
 
       final index = tabsList.indexWhere((t) => t.id == tabId);
       if (index == -1) return;
+      final tabToClose = tabsList[index];
 
       /// If only one tab remains in that list
       if (tabsList.length == 1) {
         final activeTab = tabsList[index];
         if (isPrivate) {
           // For private tabs, closing the last one makes the collection empty and displays the private home splash page.
-          unawaited(activeTab.controller.dispose());
+          unawaited(_disposeOrDeferController(activeTab.controller));
           emit(
             state.copyWith(privateTabs: const [], activePrivateTabIndex: -1),
           );
@@ -566,8 +591,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
         return;
       }
 
-      final tabToClose = tabsList[index];
-      unawaited(tabToClose.controller.dispose());
+      unawaited(_disposeOrDeferController(tabToClose.controller));
 
       final updatedTabs = List<BrowserTab>.from(tabsList)..removeAt(index);
 
@@ -654,6 +678,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
       if (state.mode == targetMode && activeIndex == index) return;
 
       if (oldTab != null) {
+        await _captureTabScreenshot(oldTab, emit);
         if (oldTab.controller.value) {
           await oldTab.controller.setClientFocus(false);
           await oldTab.controller.wasHidden(true);
@@ -722,7 +747,11 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
       final tabsList = isPrivate ? state.privateTabs : state.normalTabs;
 
       for (final tab in tabsList) {
-        await tab.controller.dispose();
+        try {
+          unawaited(_disposeOrDeferController(tab.controller));
+        } catch (e, stackTrace) {
+          AppLogger.e("Error closing controller", error: e, stack: stackTrace);
+        }
       }
 
       if (isPrivate) {
@@ -747,6 +776,35 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     }
   }
 
+  /// Safely disposes of a tab's controller or defers disposal until active downloads finish.
+  Future<void> _disposeOrDeferController(WebViewController controller) async {
+    if (!controller.value) return;
+
+    final hasActiveDownload =
+        downloadBloc?.state.downloads.any(
+          (d) =>
+              (d.status == DownloadStatus.downloading ||
+                  d.status == DownloadStatus.pending) &&
+              downloadBloc?.isControllerActive(controller) == true,
+        ) ??
+        false;
+
+    if (hasActiveDownload) {
+      AppLogger.i(
+        '[BrowserBloc] Tab closed during active download. Hiding webview (wasHidden=true) and deferring dispose until download finishes.',
+      );
+      try {
+        await controller.setClientFocus(false);
+        await controller.wasHidden(true);
+      } catch (e) {
+        AppLogger.e('Error setting wasHidden on background download tab: $e');
+      }
+      downloadBloc?.registerPendingDisposeController(controller);
+    } else {
+      await controller.dispose();
+    }
+  }
+
   /// Helper to persist current tabs state.
   void _persistTabs() {
     if (_tabRepository == null) return;
@@ -761,11 +819,50 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
           url: tab.isHomePage ? '' : tab.currentUrl,
           title: tab.title,
           isActive: i == state.activeNormalTabIndex,
+          screenshot: tab.screenshot,
         ),
       );
     }
     _tabRepository!.deleteAllTabs();
     _tabRepository!.saveAllTabs(tabsToSave);
+  }
+
+  Future<void> _captureTabScreenshot(
+    BrowserTab? tab,
+    Emitter<BrowserState> emit,
+  ) async {
+    if (tab == null) return;
+    if (!tab.controller.value) return;
+    if (tab.isHomePage || tab.currentUrl.isEmpty) return;
+    if (_tabRepository == null) return;
+
+    try {
+      final screenshotBytes = await tab.controller.captureScreenshot();
+      if (screenshotBytes != null && screenshotBytes.isNotEmpty) {
+        final isPrivate = tab.isPrivate;
+        final tabsList = isPrivate ? state.privateTabs : state.normalTabs;
+        final index = tabsList.indexWhere((t) => t.id == tab.id);
+
+        if (index != -1) {
+          final updatedTab = tab.copyWith(screenshot: screenshotBytes);
+          final updatedTabs = List<BrowserTab>.from(tabsList);
+          updatedTabs[index] = updatedTab;
+
+          if (isPrivate) {
+            emit(state.copyWith(privateTabs: updatedTabs));
+          } else {
+            emit(state.copyWith(normalTabs: updatedTabs));
+            _persistTabs();
+          }
+        }
+      }
+    } catch (e, stackTrace) {
+      AppLogger.e(
+        "Error capturing tab screenshot",
+        error: e,
+        stack: stackTrace,
+      );
+    }
   }
 
   /// Handler to load a new URL in the active tab.
@@ -959,8 +1056,11 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
       );
     }
 
-    // Save URL changes to browser history only if NOT private
-    if (!isPrivate && _historyRepository != null && !isHome) {
+    // Save URL changes to browser history only if NOT private and not a load error
+    if (!isPrivate &&
+        _historyRepository != null &&
+        !isHome &&
+        updatedTab.errorInfo == null) {
       final parsedUri = Uri.tryParse(event.url.trim());
       if (parsedUri == null || !parsedUri.isAbsolute) {
         AppLogger.i(
@@ -1077,7 +1177,11 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     if (index == -1) return;
 
     final tabsList = isPrivate ? state.privateTabs : state.normalTabs;
-    final updatedTab = tabsList[index].copyWith(isLoading: true);
+    // clear error on load start
+    final updatedTab = tabsList[index].copyWith(
+      isLoading: true,
+      clearErrorInfo: true,
+    );
     final updatedTabs = List<BrowserTab>.from(tabsList);
     updatedTabs[index] = updatedTab;
 
@@ -1192,6 +1296,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     if (state.mode == event.mode) return;
 
     final oldTab = state.activeTab;
+    await _captureTabScreenshot(oldTab, emit);
 
     emit(state.copyWith(mode: event.mode));
 
@@ -1227,6 +1332,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     BrowserTabSwitcherOpened event,
     Emitter<BrowserState> emit,
   ) {
+    // _captureTabScreenshot(state.activeTab, emit);
     emit(state.copyWith(tabSwitcherMode: state.mode));
   }
 
@@ -1262,6 +1368,70 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
       if (state.isBottomBarVisible) {
         emit(state.copyWith(isBottomBarVisible: false));
       }
+    }
+  }
+
+  /// Sets the hidden state and client focus of the active webview tab controller.
+  Future<void> _onWasHidden(
+    BrowserWasHiddenRequested event,
+    Emitter<BrowserState> emit,
+  ) async {
+    try {
+      final activeTab = state.activeTab;
+      if (activeTab != null && activeTab.controller.value) {
+        await activeTab.controller.wasHidden(event.isHidden);
+        await activeTab.controller.setClientFocus(!event.isHidden);
+      }
+    } catch (e, stackTrace) {
+      AppLogger.w("Error setting wasHidden state: $e $stackTrace");
+    }
+  }
+
+  /// Updates the target tab state with error details for main frame navigation failures.
+  void _onLoadErrorOccurred(
+    BrowserLoadErrorOccurred event,
+    Emitter<BrowserState> emit,
+  ) {
+    try {
+      // Only handle main frame navigation errors and ignore ERR_ABORTED (-3)
+      if (!event.isMainFrame || event.errorCode == -3) {
+        return;
+      }
+
+      // Search for tab index in normal and private tab lists
+      int index = state.normalTabs.indexWhere((t) => t.id == event.tabId);
+      bool isPrivate = false;
+      if (index == -1) {
+        index = state.privateTabs.indexWhere((t) => t.id == event.tabId);
+        isPrivate = true;
+      }
+      if (index == -1) return;
+
+      final tabsList = isPrivate ? state.privateTabs : state.normalTabs;
+
+      final errorInfo = BrowserErrorInfo(
+        errorCode: event.errorCode,
+        errorText: event.errorText,
+        failedUrl: event.failedUrl,
+      );
+
+      // Update tab with error details and clear loading flag
+      final updatedTab = tabsList[index].copyWith(
+        errorInfo: errorInfo,
+        currentUrl: event.failedUrl,
+        isLoading: false,
+      );
+
+      final updatedTabs = List<BrowserTab>.from(tabsList);
+      updatedTabs[index] = updatedTab;
+
+      if (isPrivate) {
+        emit(state.copyWith(privateTabs: updatedTabs));
+      } else {
+        emit(state.copyWith(normalTabs: updatedTabs));
+      }
+    } catch (e, stackTrace) {
+      AppLogger.w("Error loading URL: $e $stackTrace");
     }
   }
 

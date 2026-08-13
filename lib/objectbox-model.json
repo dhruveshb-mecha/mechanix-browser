@@ -78,7 +78,7 @@
     },
     {
       "id": "3:1923416986273577909",
-      "lastPropertyId": "6:5339588714681877315",
+      "lastPropertyId": "8:8193946014709493973",
       "name": "TabEntity",
       "properties": [
         {
@@ -111,12 +111,81 @@
           "id": "6:5339588714681877315",
           "name": "isActive",
           "type": 1
+        },
+        {
+          "id": "8:8193946014709493973",
+          "name": "screenshot",
+          "type": 23
+        }
+      ],
+      "relations": []
+    },
+    {
+      "id": "4:7425800535876162715",
+      "lastPropertyId": "15:9104059306806060798",
+      "name": "DownloadEntity",
+      "properties": [
+        {
+          "id": "1:5661947160554001594",
+          "name": "id",
+          "type": 6,
+          "flags": 1
+        },
+        {
+          "id": "2:284254951092165295",
+          "name": "cefDownloadId",
+          "type": 6
+        },
+        {
+          "id": "3:8957443302556014527",
+          "name": "url",
+          "type": 9
+        },
+        {
+          "id": "4:5317938980948292364",
+          "name": "fileName",
+          "type": 9
+        },
+        {
+          "id": "5:3570753595358915978",
+          "name": "filePath",
+          "type": 9
+        },
+        {
+          "id": "7:5041706356719335629",
+          "name": "totalBytes",
+          "type": 6
+        },
+        {
+          "id": "8:911878390475061205",
+          "name": "downloadedBytes",
+          "type": 6
+        },
+        {
+          "id": "9:2359168459687173526",
+          "name": "statusIndex",
+          "type": 6
+        },
+        {
+          "id": "10:7673114897209574207",
+          "name": "createdAt",
+          "type": 6
+        },
+        {
+          "id": "12:7674189934964459086",
+          "name": "completedAt",
+          "type": 6
+        },
+        {
+          "id": "15:9104059306806060798",
+          "name": "errorMessage",
+          "type": 9
         }
       ],
       "relations": []
     }
   ],
-  "lastEntityId": "3:1923416986273577909",
+  "lastEntityId": "4:7425800535876162715",
   "lastIndexId": "0:0",
   "lastRelationId": "0:0",
   "lastSequenceId": "0:0",
@@ -124,7 +193,13 @@
   "modelVersionParserMinimum": 5,
   "retiredEntityUids": [],
   "retiredIndexUids": [],
-  "retiredPropertyUids": [],
+  "retiredPropertyUids": [
+    5539269492544820135,
+    3058536367917705484,
+    7868234118940166174,
+    2557721577696236183,
+    8987975594118788200
+  ],
   "retiredRelationUids": [],
   "version": 1
 }
