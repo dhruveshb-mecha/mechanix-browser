@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mechanix_browser/core/routes/app_routes.dart';
 import 'package:mechanix_browser/core/services/objectbox_service.dart';
+import 'package:mechanix_browser/core/utils/constants.dart';
 import 'package:mechanix_browser/core/utils/app_theme.dart';
 import 'package:mechanix_browser/features/browser/bloc/browser_bloc.dart';
 import 'package:mechanix_browser/features/browser/bloc/download/download_bloc.dart';
@@ -13,6 +14,7 @@ import 'package:mechanix_browser/features/browser/data/repositories/history_repo
 import 'package:mechanix_browser/features/browser/data/repositories/history_repository_impl.dart';
 import 'package:mechanix_browser/l10n/app_localizations.dart';
 import 'package:show_fps/show_fps.dart';
+import 'package:webview_cef/webview_cef.dart';
 
 import 'package:mechanix_browser/features/browser/data/repositories/download_repository.dart';
 import 'package:mechanix_browser/features/browser/data/repositories/download_repository_impl.dart';
@@ -21,6 +23,9 @@ void main(List<String> args) async {
   final deepLinkUrl = args.isNotEmpty ? args.first : null;
   print(deepLinkUrl);
   WidgetsFlutterBinding.ensureInitialized();
+  await WebviewManager().initialize(
+    userAgent: AppConstants.defaultUserAgent,
+  );
   await ObjectBoxService.initialize();
 
   runApp(MyApp(initialUrl: deepLinkUrl));

@@ -309,29 +309,33 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
       );
 
       final savedTabs = _tabRepository!.getAllTabs();
-      final List<BrowserTab> tabs = List.from(state.normalTabs);
-      // final List<BrowserTab> tabs = [];
-      // int activeTabIndex = 0;
+      final startupTabs = List<BrowserTab>.from(state.normalTabs);
+      final List<BrowserTab> tabs = [];
 
-      int activeTabIndex = tabs.length - 1; // Default to the last added tab (initial URL)
+      int activeTabIndex = -1;
 
-      if (savedTabs.isEmpty && tabs.isEmpty) {
+      if (savedTabs.isEmpty) {
         tabs.add(_createNewTab(AppConstants.homepageUrl));
         activeTabIndex = 0;
       } else {
-        for (int i = 0; i < savedTabs.length; i++) {
-          final tabEntity = savedTabs[i];
-          // Check if tab already exists to avoid duplicates if necessary
+        for (final tabEntity in savedTabs) {
           final tab = _createNewTab(
             tabEntity.url.isEmpty ? AppConstants.homepageUrl : tabEntity.url,
             id: tabEntity.tabId,
             load: tabEntity.isActive,
           ).copyWith(screenshot: tabEntity.screenshot);
+
           tabs.add(tab);
-          if (tabEntity.isActive && activeTabIndex < 0) {
+          if (tabEntity.isActive) {
             activeTabIndex = tabs.length - 1;
           }
         }
+        if (activeTabIndex < 0) activeTabIndex = 0;
+      }
+
+      if (startupTabs.isNotEmpty) {
+        tabs.addAll(startupTabs);
+        activeTabIndex = tabs.length - 1;
       }
 
       // Ensure activeTabIndex is valid
@@ -481,7 +485,11 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     Emitter<BrowserState> emit,
   ) async {
     try {
-      // if (!state.isInitialized) return;
+      if (!state.isInitialized) {
+        await WebviewManager().initialize(
+          userAgent: AppConstants.defaultUserAgent,
+        );
+      }
       print("initial url: ${event.initialUrl}");
       final oldTab = state.activeTab;
       if (oldTab != null) {
