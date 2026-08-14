@@ -47,14 +47,14 @@ dependencies:
     git:
       url: https://github.com/mecha-org/webview_cef.git
       ref: main
-
+  # path: ../webview_cef
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   build_runner: any
   objectbox_generator: ^5.3.2
-
+  
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
   # activated in the `analysis_options.yaml` file located at the root of your
@@ -74,6 +74,7 @@ flutter:
   uses-material-design: true
 
   assets:
+    - assets/desktop_icon.png
     - assets/images/logo.png
     - assets/images/incognito.png
 
