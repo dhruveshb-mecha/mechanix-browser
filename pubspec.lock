@@ -379,9 +379,11 @@ packages:
   webview_cef:
     dependency: "direct main"
     description:
-      path: "../webview_cef"
-      relative: true
-    source: path
+      path: "."
+      ref: main
+      resolved-ref: "32996047b3fc1d3c94b26a518ca44883768677f0"
+      url: "https://github.com/mecha-org/webview_cef.git"
+    source: git
     version: "0.5.1"
   xdg_directories:
     dependency: transitive

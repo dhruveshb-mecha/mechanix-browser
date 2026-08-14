@@ -21,7 +21,6 @@ import 'package:mechanix_browser/features/browser/data/repositories/download_rep
 
 void main(List<String> args) async {
   final deepLinkUrl = args.isNotEmpty ? args.first : null;
-  print(deepLinkUrl);
   WidgetsFlutterBinding.ensureInitialized();
   await WebviewManager().initialize(
     userAgent: AppConstants.defaultUserAgent,
@@ -56,7 +55,6 @@ class _MyAppState extends State<MyApp> {
     _historyBloc = HistoryBloc(repository: HistoryRepositoryImpl());
 
     if (widget.initialUrl != null && widget.initialUrl!.isNotEmpty) {
-      print("----------------> initial tab isn't null so forwarding the initial url");
       _browserBloc.add(BrowserNewTabRequested(initialUrl: widget.initialUrl));
     }
 

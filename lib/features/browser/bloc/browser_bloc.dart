@@ -490,7 +490,6 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
           userAgent: AppConstants.defaultUserAgent,
         );
       }
-      print("initial url: ${event.initialUrl}");
       final oldTab = state.activeTab;
       if (oldTab != null) {
         await _captureTabScreenshot(oldTab, emit);
