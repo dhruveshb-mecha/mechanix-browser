@@ -74,6 +74,7 @@ flutter:
   uses-material-design: true
 
   assets:
+    - assets/desktop_icon.png
     - assets/images/logo.png
     - assets/images/incognito.png
 
