@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Mechanix Browser
+Comment=Browser for Mechanix OS
+Exec=mechanix_browser -s 1
+Icon=org.mechanix.browser
+Terminal=false
+Categories=Network;WebBrowser;
+StartupNotify=true
+StartupWMClass=org.mechanix.browser
