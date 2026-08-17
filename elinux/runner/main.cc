@@ -1,4 +1,6 @@
-// elinux/runner/main.cc
+// Copyright 2021 Sony Corporation. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
 
 #include <flutter/basic_message_channel.h>
 #include <flutter/dart_project.h>
