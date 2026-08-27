@@ -10,13 +10,51 @@ description: Browser for Mechanix OS
 homepage: https://github.com/mecha-org/mechanix-browser.git
 license: BSD
 
+overrides:
+  rpm:
+    depends:
+      - mechanix-flutter-engine = 3.47.0
+  deb:
+    depends:
+      - "mechanix-flutter-engine (= 3.47.0)"
+
 contents:
   - src: ./stage/bundle/mechanix_browser
     dst: /usr/share/mechanix/mechanix-browser/mechanix_browser
     file_info:
       mode: 0755
-  - src: ./stage/bundle/lib
-    dst: /usr/share/mechanix/mechanix-browser/lib
+  - src: ./stage/bundle/lib/chrome_100_percent.pak
+    dst: /usr/share/mechanix/mechanix-browser/lib/chrome_100_percent.pak
+  - src: ./stage/bundle/lib/chrome_200_percent.pak
+    dst: /usr/share/mechanix/mechanix-browser/lib/chrome_200_percent.pak
+  - src: ./stage/bundle/lib/chrome-sandbox
+    dst: /usr/share/mechanix/mechanix-browser/lib/chrome-sandbox
+  - src: ./stage/bundle/lib/icudtl.dat
+    dst: /usr/share/mechanix/mechanix-browser/lib/icudtl.dat
+  - src: ./stage/bundle/lib/libapp.so
+    dst: /usr/share/mechanix/mechanix-browser/lib/libapp.so
+  - src: ./stage/bundle/lib/libcef.so
+    dst: /usr/share/mechanix/mechanix-browser/lib/libcef.so
+  - src: ./stage/bundle/lib/libEGL.so
+    dst: /usr/share/mechanix/mechanix-browser/lib/libEGL.so
+  - src: ./stage/bundle/lib/libGLESv2.so
+    dst: /usr/share/mechanix/mechanix-browser/lib/libGLESv2.so
+  - src: ./stage/bundle/lib/libobjectbox.so
+    dst: /usr/share/mechanix/mechanix-browser/lib/libobjectbox.so
+  - src: ./stage/bundle/lib/libvk_swiftshader.so
+    dst: /usr/share/mechanix/mechanix-browser/lib/libvk_swiftshader.so
+  - src: ./stage/bundle/lib/libvulkan.so.1
+    dst: /usr/share/mechanix/mechanix-browser/lib/libvulkan.so.1
+  - src: ./stage/bundle/lib/libwebview_cef_plugin.so
+    dst: /usr/share/mechanix/mechanix-browser/lib/libwebview_cef_plugin.so
+  - src: ./stage/bundle/lib/locales
+    dst: /usr/share/mechanix/mechanix-browser/lib/locales
+  - src: ./stage/bundle/lib/resources.pak
+    dst: /usr/share/mechanix/mechanix-browser/lib/resources.pak
+  - src: ./stage/bundle/lib/v8_context_snapshot.bin
+    dst: /usr/share/mechanix/mechanix-browser/lib/v8_context_snapshot.bin
+  - src: ./stage/bundle/lib/vk_swiftshader_icd.json
+    dst: /usr/share/mechanix/mechanix-browser/lib/vk_swiftshader_icd.json
   - src: ./stage/bundle/data
     dst: /usr/share/mechanix/mechanix-browser/data
   - src: ./packaging/nfpm/scripts/launcher.sh

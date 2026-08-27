@@ -25,6 +25,11 @@ class FlutterWindow {
   void OnDestroy();
   void Run();
 
+  flutter::FlutterEngine* GetEngine() {
+    return flutter_view_controller_ ? flutter_view_controller_->engine()
+                                    : nullptr;
+  }
+
  private:
   flutter::FlutterViewController::ViewProperties view_properties_;
   flutter::DartProject project_;

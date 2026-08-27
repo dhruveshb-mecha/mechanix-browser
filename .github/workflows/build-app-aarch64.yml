@@ -16,6 +16,7 @@ on:
       - "elinux/**"
 
 env:
+  FLUTTER_ELINUX_VERSION: "3.47.0"
   CARGO_INCREMENTAL: 0
   CARGO_NET_RETRY: 10
   RUST_BACKTRACE: short
@@ -59,7 +60,7 @@ jobs:
           MECHANIX_PACKAGER_VERSION: v0.0.1
         run: |
           mkdir -p "$RUNNER_TEMP/mechanix-packager"
-          curl -fsSL "https://github.com/dhruveshb-mecha/mechanix-packager/archive/refs/tags/${MECHANIX_PACKAGER_VERSION}.tar.gz" \
+          curl -fsSL "https://github.com/mecha-org/mechanix-packager/archive/refs/tags/${MECHANIX_PACKAGER_VERSION}.tar.gz" \
             | tar -xz -C "$RUNNER_TEMP/mechanix-packager" --strip-components=1
           echo "MECHANIX_PACKAGER_DIR=$RUNNER_TEMP/mechanix-packager" >> "$GITHUB_ENV"
 
@@ -71,7 +72,7 @@ jobs:
       - name: Install Flutter eLinux Toolchain
         run: |
           if [ ! -d "/opt/flutter-elinux" ]; then
-            git clone https://github.com/flutter-elinux/flutter-elinux.git
+            git clone --branch "$FLUTTER_ELINUX_VERSION" --depth 1 https://github.com/flutter-elinux/flutter-elinux.git
             sudo mv flutter-elinux /opt/
           fi
 
