@@ -11,7 +11,11 @@ import 'package:mechanix_browser/features/browser/presentation/widgets/browser_s
 import 'package:mechanix_browser/features/browser/presentation/widgets/tab_switcher_sheet.dart';
 
 class BrowserBottomBar extends StatefulWidget {
-  const BrowserBottomBar({super.key});
+  /// Focus node of the address bar. Pass one to focus the address bar from
+  /// outside (e.g. the Ctrl+L shortcut); the caller then owns and disposes it.
+  final FocusNode? addressBarFocusNode;
+
+  const BrowserBottomBar({super.key, this.addressBarFocusNode});
 
   @override
   State<BrowserBottomBar> createState() => _BrowserBottomBarState();
@@ -19,7 +23,7 @@ class BrowserBottomBar extends StatefulWidget {
 
 class _BrowserBottomBarState extends State<BrowserBottomBar> {
   final _textController = TextEditingController();
-  final _focusNode = FocusNode();
+  late final FocusNode _focusNode = widget.addressBarFocusNode ?? FocusNode();
   OverlayEntry? _overlayEntry;
   OverlayEntry? _menuOverlayEntry;
   Timer? _debounceTimer;
@@ -70,6 +74,9 @@ class _BrowserBottomBarState extends State<BrowserBottomBar> {
         const BrowserBottomBarVisibilityChanged(true, isInteracting: true),
       );
     } else {
+      // Focus can also leave from outside this widget (Escape, a keyboard
+      // shortcut opening another screen), so close the suggestions here too.
+      _hideOverlay();
       // When unfocused: restore display title (or empty string if on home page)
       if (state.isHomePage) {
         _textController.text = '';
@@ -197,7 +204,7 @@ class _BrowserBottomBarState extends State<BrowserBottomBar> {
     _hideOverlay();
     _hideMenu();
     _focusNode.removeListener(_onFocusChange);
-    _focusNode.dispose();
+    if (widget.addressBarFocusNode == null) _focusNode.dispose();
     _textController.dispose();
     super.dispose();
   }
