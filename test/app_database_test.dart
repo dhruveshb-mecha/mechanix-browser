@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:drift/drift.dart' hide isNull;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -11,6 +13,45 @@ void main() {
 
   setUp(() => db = AppDatabase(NativeDatabase.memory()));
   tearDown(() => db.close());
+
+  group('migrations', () {
+    test('v1 -> v2 adds the redirect-source index', () async {
+      final dir = Directory.systemTemp.createTempSync('migration_test');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      final file = File('${dir.path}/browser.sqlite');
+
+      // Make a v1 database: today's schema without the v2 index.
+      final v1 = AppDatabase(NativeDatabase(file));
+      await v1.customStatement('DROP INDEX visits_redirect_source');
+      await v1.customStatement('PRAGMA user_version = 1');
+      await v1.close();
+
+      final upgraded = AppDatabase(NativeDatabase(file));
+      addTearDown(upgraded.close);
+      final names = await upgraded
+          .customSelect(
+            "SELECT name FROM sqlite_master WHERE name = 'visits_redirect_source'",
+          )
+          .get();
+      expect(names, hasLength(1));
+      final version = await upgraded
+          .customSelect('PRAGMA user_version')
+          .getSingle();
+      expect(version.data.values.single, 2);
+    });
+  });
+
+  test('the history list reads the redirect index, not every visit', () async {
+    final plan = await db
+        .customSelect(
+          'EXPLAIN QUERY PLAN SELECT * FROM history_entries '
+          'ORDER BY timestamp DESC LIMIT 50',
+        )
+        .get();
+    final steps = plan.map((r) => r.read<String>('detail')).toList();
+    expect(steps, contains(contains('visits_redirect_source')));
+    expect(steps, isNot(contains('SCAN visits')));
+  });
 
   Future<int> addUrl(String url, {String title = '', bool hidden = false}) => db
       .into(db.urls)
@@ -56,11 +97,12 @@ void main() {
         'table:urls',
         'table:visits',
         'index:visits_from_visit',
+        'index:visits_redirect_source',
         'index:visits_url_id',
         'index:visits_visit_time',
       ],
     );
-    expect(db.schemaVersion, 1);
+    expect(db.schemaVersion, 2);
   });
 
   group('history', () {

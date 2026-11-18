@@ -10,35 +10,56 @@ class HistoryRepositoryImpl implements HistoryRepository {
 
   final AppDatabase _db;
 
-  SimpleSelectStatement<$HistoryEntriesView, BrowserHistory> _newestFirst(
+  /// Newest first; [after] continues from the last entry of a previous page
+  /// (keyset paging, so it stays cheap however far the user scrolls).
+  SimpleSelectStatement<$HistoryEntriesView, BrowserHistory> _newestFirst({
     int? limit,
-  ) {
+    BrowserHistory? after,
+  }) {
     final query = _db.select(_db.historyEntries)
       ..orderBy([
         (h) => OrderingTerm.desc(h.timestamp),
         (h) => OrderingTerm.desc(h.id),
       ]);
+    if (after != null) {
+      query.where(
+        (h) =>
+            h.timestamp.isSmallerThanValue(after.timestamp) |
+            (h.timestamp.equals(after.timestamp) &
+                h.id.isSmallerThanValue(after.id)),
+      );
+    }
     if (limit != null) query.limit(limit);
     return query;
   }
 
   @override
-  Future<List<BrowserHistory>> getHistory({int? limit}) =>
-      _newestFirst(limit).get();
+  Future<List<BrowserHistory>> getHistory({
+    int? limit,
+    BrowserHistory? after,
+  }) => _newestFirst(limit: limit, after: after).get();
 
   @override
-  Future<List<BrowserHistory>> searchHistory(String query, {int? limit}) {
+  Future<List<BrowserHistory>> searchHistory(
+    String query, {
+    int? limit,
+    BrowserHistory? after,
+  }) {
     final text = query.trim();
     if (text.isEmpty) return Future.value(const []);
     // Match the text literally: escape LIKE's own wildcards.
     final pattern =
         '%${text.replaceAll(r'\', r'\\').replaceAll('%', r'\%').replaceAll('_', r'\_')}%';
-    return (_newestFirst(limit)..where(
-          (h) =>
-              h.url.like(pattern, escapeChar: r'\') |
-              h.title.like(pattern, escapeChar: r'\'),
-        ))
-        .get();
+    final matchingUrls = _db.selectOnly(_db.urls)
+      ..addColumns([_db.urls.url])
+      ..where(
+        _db.urls.url.like(pattern, escapeChar: r'\') |
+            _db.urls.title.like(pattern, escapeChar: r'\'),
+      );
+    return (_newestFirst(
+      limit: limit,
+      after: after,
+    )..where((h) => h.url.isInQuery(matchingUrls))).get();
   }
 
   @override

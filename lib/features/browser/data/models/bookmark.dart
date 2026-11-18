@@ -55,4 +55,13 @@ class Bookmark {
   set type(BookmarkType value) {
     typeString = value.name;
   }
+
+  /// Whether the title or URL contains [query], ignoring case. A blank
+  /// query matches everything.
+  bool matches(String query) {
+    final q = query.trim().toLowerCase();
+    return q.isEmpty ||
+        url.toLowerCase().contains(q) ||
+        (title?.toLowerCase().contains(q) ?? false);
+  }
 }

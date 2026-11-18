@@ -1711,6 +1711,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     'visits_from_visit',
     'CREATE INDEX visits_from_visit ON visits (from_visit)',
   );
+  late final Index visitsRedirectSource = Index(
+    'visits_redirect_source',
+    'CREATE INDEX visits_redirect_source ON visits (from_visit) WHERE transition = \'redirect\'',
+  );
   late final Index downloadsCefDownloadId = Index(
     'downloads_cef_download_id',
     'CREATE INDEX downloads_cef_download_id ON downloads (cef_download_id)',
@@ -1728,6 +1732,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     visitsUrlId,
     visitsVisitTime,
     visitsFromVisit,
+    visitsRedirectSource,
     downloadsCefDownloadId,
   ];
   @override

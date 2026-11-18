@@ -261,6 +261,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get clearAll => 'Clear all';
 
   @override
+  String get searchHistory => 'Search history';
+
+  @override
+  String get searchBookmarks => 'Search bookmarks';
+
+  @override
+  String get noSearchResults => 'No matches';
+
+  @override
   String get delete => 'Delete';
 
   @override

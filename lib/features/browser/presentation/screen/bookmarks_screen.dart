@@ -6,11 +6,20 @@ import 'package:mechanix_browser/features/browser/data/models/bookmark.dart';
 import 'package:mechanix_browser/features/browser/presentation/widgets/add_favorite_dialog.dart';
 import 'package:mechanix_browser/features/browser/presentation/widgets/bookmarks/bookmark_tile.dart';
 import 'package:mechanix_browser/features/browser/presentation/widgets/bookmarks/current_page_bookmark_card.dart';
+import 'package:mechanix_browser/features/browser/presentation/widgets/list_search_field.dart';
 import 'package:mechanix_browser/l10n/app_localizations.dart';
 import 'package:mechanix_browser/features/browser/data/models/page_transition.dart';
 
-class BookmarksScreen extends StatelessWidget {
+class BookmarksScreen extends StatefulWidget {
   const BookmarksScreen({super.key});
+
+  @override
+  State<BookmarksScreen> createState() => _BookmarksScreenState();
+}
+
+class _BookmarksScreenState extends State<BookmarksScreen> {
+  /// Filters both lists; bookmarks are in memory, so no query is needed.
+  String _query = '';
 
   @override
   Widget build(BuildContext context) {
@@ -52,14 +61,20 @@ class BookmarksScreen extends StatelessWidget {
                     : activeTab.currentUrl)
               : l10n.openPageFirst;
 
-          final favorites = state.favorites;
-          final bookmarks = state.bookmarks;
+          final isSearching = _query.trim().isNotEmpty;
+          final favorites = state.favorites.where((b) => b.matches(_query));
+          final bookmarks = state.bookmarks.where((b) => b.matches(_query));
 
           return SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                ListSearchField(
+                  hintText: l10n.searchBookmarks,
+                  onChanged: (query) => setState(() => _query = query),
+                ),
+                const SizedBox(height: 16),
                 CurrentPageBookmarkCard(
                   hasActivePage: hasActivePage,
                   isCurrentBookmarked: isCurrentBookmarked,
@@ -92,7 +107,9 @@ class BookmarksScreen extends StatelessWidget {
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 8.0),
                     child: Text(
-                      l10n.noFavoritesSaved,
+                      isSearching
+                          ? l10n.noSearchResults
+                          : l10n.noFavoritesSaved,
                       style: TextStyle(color: colors.searchBarHint),
                     ),
                   )
@@ -174,7 +191,9 @@ class BookmarksScreen extends StatelessWidget {
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 8.0),
                     child: Text(
-                      l10n.noBookmarksSaved,
+                      isSearching
+                          ? l10n.noSearchResults
+                          : l10n.noBookmarksSaved,
                       style: TextStyle(color: colors.searchBarHint),
                     ),
                   )

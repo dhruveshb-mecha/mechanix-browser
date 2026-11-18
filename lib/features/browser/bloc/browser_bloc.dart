@@ -333,7 +333,9 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
       );
 
       final allSavedTabs = await _tabRepository!.getAllTabs();
-      final history = await _historyRepository!.getHistory();
+      final history = await _historyRepository!.getHistory(
+        limit: AppConstants.maxHistorySuggestions,
+      );
 
       // No awaits from here to the emit below: a tab opened meanwhile (e.g.
       // a URL passed on the command line) must not be lost.
@@ -1242,7 +1244,11 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
         if (await visit.id == null) return;
         await _historyRepository!.setTitle(visit.url, event.title);
         emit(
-          state.copyWith(searchResults: await _historyRepository!.getHistory()),
+          state.copyWith(
+            searchResults: await _historyRepository!.getHistory(
+              limit: AppConstants.maxHistorySuggestions,
+            ),
+          ),
         );
       } catch (e, stackTrace) {
         AppLogger.e(
@@ -1356,13 +1362,19 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     try {
       final List<BrowserHistory> results;
       if (query.trim().isEmpty) {
-        results = await _historyRepository!.getHistory();
+        results = await _historyRepository!.getHistory(
+          limit: AppConstants.maxHistorySuggestions,
+        );
       } else {
+        // One suggestion per URL, from the newest matching visits.
         final seenUrls = <String>{};
         results = [
-          for (final item in await _historyRepository!.searchHistory(query))
+          for (final item in await _historyRepository!.searchHistory(
+            query,
+            limit: AppConstants.maxHistorySuggestions * 5,
+          ))
             if (seenUrls.add(item.url.trim().toLowerCase())) item,
-        ];
+        ].take(AppConstants.maxHistorySuggestions).toList();
       }
       if (generation == _searchGeneration) {
         emit(state.copyWith(searchResults: results));

@@ -6,12 +6,19 @@ import 'package:mechanix_browser/features/browser/data/models/page_transition.da
 /// (its `id` is the visit id), newest first, leaving out visits that
 /// redirected onward.
 abstract class HistoryRepository {
-  /// Visits, newest first.
-  Future<List<BrowserHistory>> getHistory({int? limit});
+  /// Visits, newest first: at most [limit], and only those older than
+  /// [after] (the last entry of the previous page), if given.
+  Future<List<BrowserHistory>> getHistory({int? limit, BrowserHistory? after});
 
-  /// Visits whose URL or title contains [query] (ASCII case-insensitive),
-  /// newest first. Empty for a blank query.
-  Future<List<BrowserHistory>> searchHistory(String query, {int? limit});
+  /// Visits to URLs whose URL or title contains [query] (ASCII
+  /// case-insensitive), newest first, paged like [getHistory]. Empty for a
+  /// blank query. Matching runs on the URLs (one row each), not on every
+  /// visit.
+  Future<List<BrowserHistory>> searchHistory(
+    String query, {
+    int? limit,
+    BrowserHistory? after,
+  });
 
   /// Records a visit to [url] and returns the new visit id.
   ///

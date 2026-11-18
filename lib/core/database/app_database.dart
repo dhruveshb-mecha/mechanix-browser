@@ -36,6 +36,12 @@ class Urls extends Table {
 @TableIndex(name: 'visits_url_id', columns: {#urlId})
 @TableIndex(name: 'visits_visit_time', columns: {#visitTime})
 @TableIndex(name: 'visits_from_visit', columns: {#fromVisit})
+// Only redirect rows, so the history list's "not a redirect source" filter
+// (see _IsRedirectChainEnd) reads a small index instead of every visit.
+@TableIndex.sql(
+  "CREATE INDEX visits_redirect_source ON visits (from_visit) "
+  "WHERE transition = 'redirect'",
+)
 class Visits extends Table {
   IntColumn get id => integer().autoIncrement()();
   IntColumn get urlId =>
@@ -139,14 +145,14 @@ class AppDatabase extends _$AppDatabase {
 
   /// Bump on every schema change and add the matching step to [migration].
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onCreate: (m) => m.createAll(),
     onUpgrade: (m, from, to) async {
-      // Add one step per version, e.g.
-      // if (from < 2) await m.addColumn(tabs, tabs.isPinned);
+      // One step per version.
+      if (from < 2) await m.createIndex(visitsRedirectSource);
     },
     // SQLite leaves foreign keys off per connection; visits rely on them for
     // ON DELETE CASCADE / SET NULL.

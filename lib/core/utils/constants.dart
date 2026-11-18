@@ -15,6 +15,12 @@ class AppConstants {
 
   /// History visits older than this are deleted (Chromium keeps 90 days).
   static const Duration historyRetention = Duration(days: 90);
+
+  /// History entries loaded per page on the history screen.
+  static const int historyPageSize = 50;
+
+  /// Most history suggestions shown under the address bar.
+  static const int maxHistorySuggestions = 10;
   static const int maxFavoritesCount = 5;
   static const Duration bottomBarAutoHideDuration = Duration(seconds: 2);
 }
