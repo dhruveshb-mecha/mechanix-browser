@@ -215,8 +215,9 @@ class HistoryUrl extends DataClass implements Insertable<HistoryUrl> {
   final int typedCount;
   final int lastVisitTime;
 
-  /// Hidden URLs (e.g. redirect hops) are kept for counting but not shown in
-  /// history or suggestions.
+  /// Hidden URLs are kept for counting but not shown in history or
+  /// suggestions. Reserved, as in Chromium (e.g. for subframe-only URLs);
+  /// nothing sets it yet. Redirect hops are left out per visit instead.
   final bool hidden;
   const HistoryUrl({
     required this.id,
@@ -1682,7 +1683,10 @@ class $HistoryEntriesView extends ViewInfo<$HistoryEntriesView, BrowserHistory>
   Query? get query =>
       (attachedDatabase.selectOnly(visits)..addColumns($columns)).join([
         innerJoin(urls, urls.id.equalsExp(visits.urlId)),
-      ])..where(BooleanExpressionOperators(urls.hidden).not());
+      ])..where(
+        BooleanExpressionOperators(urls.hidden).not() &
+            _IsRedirectChainEnd(visits.id),
+      );
   @override
   Set<String> get readTables => const {'visits', 'urls'};
 }

@@ -4,6 +4,7 @@ import 'package:mechanix_browser/features/browser/bloc/browser_bloc.dart';
 import 'package:mechanix_browser/features/browser/data/models/browser_error_info.dart';
 import 'package:mechanix_browser/features/browser/data/models/browser_tab.dart';
 import 'package:mechanix_browser/l10n/app_localizations.dart';
+import 'package:mechanix_browser/features/browser/data/models/page_transition.dart';
 
 class BrowserErrorPage extends StatelessWidget {
   final BrowserTab tab;
@@ -117,7 +118,12 @@ class BrowserErrorPage extends StatelessWidget {
                             ? errorInfo.failedUrl
                             : tab.currentUrl;
                         if (urlToReload.isNotEmpty) {
-                          bloc.add(BrowserUrlLoadRequested(urlToReload));
+                          bloc.add(
+                            BrowserUrlLoadRequested(
+                              urlToReload,
+                              transition: PageTransition.reload,
+                            ),
+                          );
                         } else {
                           bloc.add(const BrowserReloadRequested());
                         }

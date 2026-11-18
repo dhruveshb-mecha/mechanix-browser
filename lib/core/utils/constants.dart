@@ -15,6 +15,9 @@ class AppConstants {
 
   /// ObjectBox store; goes away once everything is on drift.
   static const String dbPath = '$profileDir/objectbox';
+
+  /// History visits older than this are deleted (Chromium keeps 90 days).
+  static const Duration historyRetention = Duration(days: 90);
   static const int maxFavoritesCount = 5;
   static const Duration bottomBarAutoHideDuration = Duration(seconds: 2);
 }

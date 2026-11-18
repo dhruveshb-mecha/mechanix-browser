@@ -25,8 +25,9 @@ class Urls extends Table {
   IntColumn get typedCount => integer().withDefault(const Constant(0))();
   IntColumn get lastVisitTime => integer()();
 
-  /// Hidden URLs (e.g. redirect hops) are kept for counting but not shown in
-  /// history or suggestions.
+  /// Hidden URLs are kept for counting but not shown in history or
+  /// suggestions. Reserved, as in Chromium (e.g. for subframe-only URLs);
+  /// nothing sets it yet. Redirect hops are left out per visit instead.
   BoolColumn get hidden => boolean().withDefault(const Constant(false))();
 }
 
@@ -64,7 +65,30 @@ abstract class HistoryEntries extends View {
   Query as() =>
       select([visits.id, urls.url, urls.title, timestamp]).from(visits).join([
         innerJoin(urls, urls.id.equalsExp(visits.urlId)),
-      ])..where(urls.hidden.not());
+      ])..where(urls.hidden.not() & _IsRedirectChainEnd(visits.id));
+}
+
+/// True unless the visit [visitId] redirected onward: like Chromium, history
+/// lists where a redirect chain ended.
+///
+/// Renders `<visitId> NOT IN (SELECT from_visit ...)`. Drift writes the
+/// column itself, since it aliases the view's tables (`"t0"."id"`).
+class _IsRedirectChainEnd extends Expression<bool> {
+  const _IsRedirectChainEnd(this.visitId);
+
+  final Expression<int> visitId;
+
+  @override
+  Precedence get precedence => Precedence.comparisonEq;
+
+  @override
+  void writeInto(GenerationContext context) {
+    writeInner(context, visitId);
+    context.buffer.write(
+      ' NOT IN (SELECT from_visit FROM visits '
+      "WHERE transition = 'redirect' AND from_visit IS NOT NULL)",
+    );
+  }
 }
 
 @UseRowClass(DownloadEntity)

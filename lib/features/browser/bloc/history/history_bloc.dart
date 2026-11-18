@@ -30,7 +30,7 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
     emit(state.copyWith(isLoading: true));
     try {
       final repo = _ensureRepository();
-      final items = repo.getHistory();
+      final items = await repo.getHistory();
       final grouped = HistoryDateGrouper.groupHistory(items);
       emit(
         state.copyWith(
@@ -49,7 +49,7 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
     Emitter<HistoryState> emit,
   ) async {
     final repo = _ensureRepository();
-    repo.deleteHistory(event.item.id);
+    await repo.deleteVisit(event.item.id);
 
     final remainingItems = state.historyItems
         .where((item) => item.id != event.item.id)
@@ -67,7 +67,7 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
     Emitter<HistoryState> emit,
   ) async {
     final repo = _ensureRepository();
-    repo.clearHistory();
+    await repo.clearHistory();
     emit(state.copyWith(historyItems: const [], groupedSections: const []));
   }
 
@@ -79,9 +79,9 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
     final query = event.query.trim();
     final List<BrowserHistory> results;
     if (query.isEmpty) {
-      results = repo.getHistory();
+      results = await repo.getHistory();
     } else {
-      results = repo.searchHistory(query);
+      results = await repo.searchHistory(query);
     }
 
     final grouped = HistoryDateGrouper.groupHistory(results);
@@ -92,11 +92,5 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
         groupedSections: grouped,
       ),
     );
-  }
-
-  @override
-  Future<void> close() async {
-    repository?.close();
-    return super.close();
   }
 }

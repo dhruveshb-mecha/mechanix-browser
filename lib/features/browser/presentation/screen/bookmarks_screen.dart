@@ -7,6 +7,7 @@ import 'package:mechanix_browser/features/browser/presentation/widgets/add_favor
 import 'package:mechanix_browser/features/browser/presentation/widgets/bookmarks/bookmark_tile.dart';
 import 'package:mechanix_browser/features/browser/presentation/widgets/bookmarks/current_page_bookmark_card.dart';
 import 'package:mechanix_browser/l10n/app_localizations.dart';
+import 'package:mechanix_browser/features/browser/data/models/page_transition.dart';
 
 class BookmarksScreen extends StatelessWidget {
   const BookmarksScreen({super.key});
@@ -105,7 +106,12 @@ class BookmarksScreen extends StatelessWidget {
                           : fav.url,
                       subtitle: fav.url,
                       onTap: () {
-                        bloc.add(BrowserUrlLoadRequested(fav.url));
+                        bloc.add(
+                          BrowserUrlLoadRequested(
+                            fav.url,
+                            transition: PageTransition.autoBookmark,
+                          ),
+                        );
                         Navigator.pop(context);
                       },
                       onRemove: () {
@@ -182,7 +188,12 @@ class BookmarksScreen extends StatelessWidget {
                           : bm.url,
                       subtitle: bm.url,
                       onTap: () {
-                        bloc.add(BrowserUrlLoadRequested(bm.url));
+                        bloc.add(
+                          BrowserUrlLoadRequested(
+                            bm.url,
+                            transition: PageTransition.autoBookmark,
+                          ),
+                        );
                         Navigator.pop(context);
                       },
                       onRemove: () {

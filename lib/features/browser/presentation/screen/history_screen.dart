@@ -6,6 +6,7 @@ import 'package:mechanix_browser/features/browser/bloc/history/history_bloc.dart
 import 'package:mechanix_browser/features/browser/data/models/browser_history.dart';
 import 'package:mechanix_browser/features/browser/presentation/widgets/history/history_section.dart';
 import 'package:mechanix_browser/l10n/app_localizations.dart';
+import 'package:mechanix_browser/features/browser/data/models/page_transition.dart';
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
@@ -23,7 +24,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   void _onItemTap(BuildContext context, BrowserHistory item) {
     if (item.url.isNotEmpty) {
-      context.read<BrowserBloc>().add(BrowserUrlLoadRequested(item.url));
+      context.read<BrowserBloc>().add(
+        BrowserUrlLoadRequested(item.url, transition: PageTransition.link),
+      );
       Navigator.pop(context);
     }
   }
