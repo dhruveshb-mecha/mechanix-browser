@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:equatable/equatable.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:mechanix_browser/core/services/objectbox_service.dart';
 import 'package:mechanix_browser/core/utils/app_logger.dart';
 import 'package:mechanix_browser/core/utils/constants.dart';
 import 'package:mechanix_browser/features/browser/bloc/download/browser_download.dart';
@@ -50,6 +49,11 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
   /// Repository managing local tabs persistency.
   TabRepository? _tabRepository;
 
+  /// The newest tab list not yet handed to [_tabRepository], and the write in
+  /// progress, if any. See [_persistTabs].
+  List<TabEntity>? _pendingTabsSnapshot;
+  Future<void>? _tabsWrite;
+
   /// Local incremental counter for unique tab ID generation.
   int _tabIdCounter = 0;
 
@@ -80,7 +84,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
   }
 
   /// Initializes a new instance of [BrowserBloc] and registers the event handlers.
-  BrowserBloc({this.downloadBloc, this._historyRepository})
+  BrowserBloc({this.downloadBloc, this._historyRepository, this._tabRepository})
     : super(BrowserState.initial()) {
     on<BrowserInitialized>(_onInitialized);
     on<BrowserUrlLoadRequested>(_onUrlLoadRequested);
@@ -317,17 +321,26 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     try {
       _historyRepository ??= HistoryRepositoryImpl();
       _bookmarkRepository = BookmarkRepository();
-      _tabRepository = await TabRepository.create(
-        store: ObjectBoxService.store,
-      );
+      _tabRepository ??= TabRepository();
       await _expireOldHistory();
 
       await WebviewManager().initialize(
         userAgent: AppConstants.defaultUserAgent,
       );
 
-      final savedTabs = _tabRepository!.getAllTabs();
+      final allSavedTabs = await _tabRepository!.getAllTabs();
+      final history = await _historyRepository!.getHistory();
+
+      // No awaits from here to the emit below: a tab opened meanwhile (e.g.
+      // a URL passed on the command line) must not be lost.
       final startupTabs = List<BrowserTab>.from(state.normalTabs);
+      // Such a tab may already have been saved; restoring it as well would
+      // open it twice, with the same id.
+      final startupIds = {for (final tab in startupTabs) tab.id};
+      final savedTabs = [
+        for (final tab in allSavedTabs)
+          if (!startupIds.contains(tab.tabId)) tab,
+      ];
       final List<BrowserTab> tabs = [];
 
       int activeTabIndex = -1;
@@ -361,7 +374,6 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
 
       final favorites = _bookmarkRepository!.getFavorites();
       final bookmarks = _bookmarkRepository!.getBookmarks();
-      final history = await _historyRepository!.getHistory();
 
       emit(
         state.copyWith(
@@ -837,7 +849,11 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     }
   }
 
-  /// Helper to persist current tabs state.
+  /// Saves the current normal tabs, without waiting.
+  ///
+  /// Each call snapshots the whole list, so only the newest snapshot matters:
+  /// one write runs at a time, and snapshots taken meanwhile collapse into a
+  /// single follow-up write.
   void _persistTabs() {
     if (_tabRepository == null) return;
 
@@ -855,8 +871,21 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
         ),
       );
     }
-    _tabRepository!.deleteAllTabs();
-    _tabRepository!.saveAllTabs(tabsToSave);
+    _pendingTabsSnapshot = tabsToSave;
+    _tabsWrite ??= _writePendingTabs();
+  }
+
+  Future<void> _writePendingTabs() async {
+    while (_pendingTabsSnapshot != null) {
+      final tabs = _pendingTabsSnapshot!;
+      _pendingTabsSnapshot = null;
+      try {
+        await _tabRepository!.replaceAllTabs(tabs);
+      } catch (e, stackTrace) {
+        AppLogger.e('Error saving tabs', error: e, stack: stackTrace);
+      }
+    }
+    _tabsWrite = null;
   }
 
   Future<void> _captureTabScreenshot(
@@ -1493,6 +1522,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
       tab.controller.dispose();
     }
     await WebviewManager().quit();
+    await _tabsWrite; // finish saving the last tab list
     _bookmarkRepository?.close();
     return super.close();
   }
