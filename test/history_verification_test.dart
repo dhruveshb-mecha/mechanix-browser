@@ -38,7 +38,7 @@ BrowserTab tab(String id, {bool private = false}) => BrowserTab(
 );
 
 /// A bloc with one normal tab `t1` and one private tab `p1`, without going
-/// through BrowserInitialized (which opens ObjectBox and CEF).
+/// through BrowserInitialized (which needs the app's storage services and CEF).
 class SeededBrowserBloc extends BrowserBloc {
   SeededBrowserBloc(HistoryRepository repository)
     : super(historyRepository: repository) {

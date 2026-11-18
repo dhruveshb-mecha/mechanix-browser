@@ -43,7 +43,7 @@ BrowserTab tab(String id) => BrowserTab(
 );
 
 /// A bloc with tabs `t1` (active) and `t2`, without BrowserInitialized
-/// (which opens ObjectBox and CEF).
+/// (which needs the app's storage services and CEF).
 class SeededBrowserBloc extends BrowserBloc {
   SeededBrowserBloc(TabRepository tabs) : super(tabRepository: tabs) {
     emit(

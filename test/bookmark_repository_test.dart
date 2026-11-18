@@ -24,7 +24,7 @@ Bookmark bookmark(
   score: score,
 );
 
-/// A bloc without BrowserInitialized (which opens ObjectBox and CEF).
+/// A bloc without BrowserInitialized (which needs the app's storage services and CEF).
 class SeededBrowserBloc extends BrowserBloc {
   SeededBrowserBloc(BookmarkRepository bookmarks)
     : super(bookmarkRepository: bookmarks) {

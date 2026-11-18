@@ -77,8 +77,7 @@ class DownloadRepositoryImpl implements DownloadRepository {
     }
   }
 
-  /// Inserts or updates [entity] and stores the id on it, like ObjectBox's
-  /// `put` did.
+  /// Inserts or updates [entity] and stores the new id on it.
   Future<int> _save(DownloadEntity entity) async {
     if (entity.id == 0) {
       entity.id = await _db.into(_db.downloads).insert(entity.toCompanion());

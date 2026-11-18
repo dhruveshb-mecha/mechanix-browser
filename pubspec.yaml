@@ -41,8 +41,6 @@ dependencies:
   bloc: ^9.2.0
   equatable: ^2.0.8
   show_fps: ^1.1.0
-  objectbox: ^5.3.2
-  objectbox_flutter_libs: ^5.3.2
   webview_cef:
     git:
       url: https://github.com/mecha-org/webview_cef.git

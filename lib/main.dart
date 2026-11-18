@@ -7,7 +7,6 @@ import 'package:mechanix_browser/core/routes/app_routes.dart';
 import 'package:mechanix_browser/core/services/bookmark_service.dart';
 import 'package:mechanix_browser/core/services/database_service.dart';
 import 'package:mechanix_browser/core/services/exit_flush.dart';
-import 'package:mechanix_browser/core/services/objectbox_service.dart';
 import 'package:mechanix_browser/core/utils/constants.dart';
 import 'package:mechanix_browser/core/utils/app_theme.dart';
 import 'package:mechanix_browser/features/browser/bloc/browser_bloc.dart';
@@ -28,7 +27,6 @@ void main(List<String> args) async {
   await WebviewManager().initialize(
     userAgent: AppConstants.defaultUserAgent,
   );
-  await ObjectBoxService.initialize();
   await DatabaseService.initialize();
   await BookmarkService.initialize();
 

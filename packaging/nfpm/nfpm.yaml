@@ -41,8 +41,6 @@ contents:
     dst: /usr/share/mechanix/mechanix-browser/lib/libEGL.so
   - src: ./stage/bundle/lib/libGLESv2.so
     dst: /usr/share/mechanix/mechanix-browser/lib/libGLESv2.so
-  - src: ./stage/bundle/lib/libobjectbox.so
-    dst: /usr/share/mechanix/mechanix-browser/lib/libobjectbox.so
   - src: ./stage/bundle/lib/libvk_swiftshader.so
     dst: /usr/share/mechanix/mechanix-browser/lib/libvk_swiftshader.so
   - src: ./stage/bundle/lib/libvulkan.so.1
