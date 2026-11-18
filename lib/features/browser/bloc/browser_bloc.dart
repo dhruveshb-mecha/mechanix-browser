@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:equatable/equatable.dart';
 import 'package:flutter/material.dart';
@@ -53,6 +54,9 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
   /// progress, if any. See [_persistTabs].
   List<TabEntity>? _pendingTabsSnapshot;
   Future<void>? _tabsWrite;
+
+  /// Screenshots captured but not yet saved, by tab id (newest wins).
+  final _pendingScreenshots = <String, Uint8List>{};
 
   /// Local incremental counter for unique tab ID generation.
   int _tabIdCounter = 0;
@@ -326,7 +330,6 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
       _historyRepository ??= HistoryRepositoryImpl();
       _bookmarkRepository ??= BookmarkRepository();
       _tabRepository ??= TabRepository();
-      await _expireOldHistory();
 
       await WebviewManager().initialize(
         userAgent: AppConstants.defaultUserAgent,
@@ -396,6 +399,8 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
           isCurrentUrlBookmarked: false,
         ),
       );
+      // Expiry writes; keep it off the startup path.
+      unawaited(_expireOldHistory());
     } catch (e) {
       AppLogger.i("Webview initialization error: $e");
     }
@@ -855,7 +860,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     }
   }
 
-  /// Saves the current normal tabs, without waiting.
+  /// Saves the current normal tabs (without screenshots), without waiting.
   ///
   /// Each call snapshots the whole list, so only the newest snapshot matters:
   /// one write runs at a time, and snapshots taken meanwhile collapse into a
@@ -873,7 +878,6 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
           url: tab.isHomePage ? '' : tab.currentUrl,
           title: tab.title,
           isActive: i == state.activeNormalTabIndex,
-          screenshot: tab.screenshot,
         ),
       );
     }
@@ -881,15 +885,29 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     _tabsWrite ??= _writePendingTabs();
   }
 
+  /// Saves a captured screenshot for its tab only, without waiting.
+  void _persistScreenshot(String tabId, Uint8List screenshot) {
+    if (_tabRepository == null) return;
+    _pendingScreenshots[tabId] = screenshot;
+    _tabsWrite ??= _writePendingTabs();
+  }
+
   /// Completes once the latest tab list has been saved.
   Future<void> flushPendingWrites() async => _tabsWrite;
 
+  /// Writes pending tab lists and screenshots one at a time. The tab list
+  /// goes first, so a new tab's row exists before its screenshot is saved.
   Future<void> _writePendingTabs() async {
-    while (_pendingTabsSnapshot != null) {
-      final tabs = _pendingTabsSnapshot!;
+    while (_pendingTabsSnapshot != null || _pendingScreenshots.isNotEmpty) {
+      final tabs = _pendingTabsSnapshot;
       _pendingTabsSnapshot = null;
+      final screenshots = Map.of(_pendingScreenshots);
+      _pendingScreenshots.clear();
       try {
-        await _tabRepository!.replaceAllTabs(tabs);
+        if (tabs != null) await _tabRepository!.saveTabs(tabs);
+        for (final MapEntry(key: tabId, value: png) in screenshots.entries) {
+          await _tabRepository!.saveScreenshot(tabId, png);
+        }
       } catch (e, stackTrace) {
         AppLogger.e('Error saving tabs', error: e, stack: stackTrace);
       }
@@ -922,7 +940,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
             emit(state.copyWith(privateTabs: updatedTabs));
           } else {
             emit(state.copyWith(normalTabs: updatedTabs));
-            _persistTabs();
+            _persistScreenshot(tab.id, screenshotBytes);
           }
         }
       }
@@ -1243,13 +1261,17 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
         // The URL's history row exists once its visit has been stored.
         if (await visit.id == null) return;
         await _historyRepository!.setTitle(visit.url, event.title);
-        emit(
-          state.copyWith(
-            searchResults: await _historyRepository!.getHistory(
-              limit: AppConstants.maxHistorySuggestions,
+        // The address bar reloads suggestions when it gains focus, so only
+        // refresh them here while it's in use.
+        if (_isInteracting) {
+          emit(
+            state.copyWith(
+              searchResults: await _historyRepository!.getHistory(
+                limit: AppConstants.maxHistorySuggestions,
+              ),
             ),
-          ),
-        );
+          );
+        }
       } catch (e, stackTrace) {
         AppLogger.e(
           'Error updating history title',
@@ -1334,7 +1356,11 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     Emitter<BrowserState> emit,
   ) async {
     if (_historyRepository == null) return;
-    await _emitSearchResults(event.query, emit);
+    await _emitSearchResults(
+      event.query,
+      emit,
+      debounce: AppConstants.searchDebounce,
+    );
   }
 
   /// Handler to delete a specific history item and refresh the search result lists.
@@ -1353,12 +1379,18 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
 
   /// Emits all history for a blank [query], otherwise the matching entries
   /// with one per URL. Results of an older query are dropped if a newer one
-  /// was started meanwhile.
+  /// was started meanwhile; with [debounce], the query only runs if no newer
+  /// one arrives within that time (one query per pause in typing).
   Future<void> _emitSearchResults(
     String query,
-    Emitter<BrowserState> emit,
-  ) async {
+    Emitter<BrowserState> emit, {
+    Duration debounce = Duration.zero,
+  }) async {
     final generation = ++_searchGeneration;
+    if (debounce > Duration.zero) {
+      await Future<void>.delayed(debounce);
+      if (generation != _searchGeneration) return;
+    }
     try {
       final List<BrowserHistory> results;
       if (query.trim().isEmpty) {

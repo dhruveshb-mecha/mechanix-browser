@@ -150,41 +150,50 @@ class HistoryRepositoryImpl implements HistoryRepository {
 
   @override
   Future<int> expireVisitsBefore(DateTime cutoff) => _db.transaction(() async {
-    final deleted =
-        await (_db.delete(_db.visits)..where(
-              (v) =>
-                  v.visitTime.isSmallerThanValue(cutoff.millisecondsSinceEpoch),
-            ))
-            .go();
-    if (deleted > 0) await _recountUrls();
+    final cutoffMs = cutoff.millisecondsSinceEpoch;
+    // Only the URLs that lose visits need recounting.
+    final affected =
+        await (_db.selectOnly(_db.visits, distinct: true)
+              ..addColumns([_db.visits.urlId])
+              ..where(_db.visits.visitTime.isSmallerThanValue(cutoffMs)))
+            .map((row) => row.read(_db.visits.urlId)!)
+            .get();
+    if (affected.isEmpty) return 0;
+
+    final deleted = await (_db.delete(
+      _db.visits,
+    )..where((v) => v.visitTime.isSmallerThanValue(cutoffMs))).go();
+    await _recountUrls(urlIds: affected.toSet());
     return deleted;
   });
 
-  /// Recomputes visit/typed counts and last visit time from the visits that
-  /// remain, for [urlIds] or all URLs, and deletes URLs with no visits left.
-  Future<void> _recountUrls({Set<int>? urlIds}) async {
-    final filter = urlIds == null
-        ? ''
-        : ' WHERE id IN (${List.filled(urlIds.length, '?').join(', ')})';
-    final args = [
-      for (final id in urlIds ?? const <int>{}) Variable.withInt(id),
-    ];
-    await _db.customUpdate(
-      'DELETE FROM urls'
-      '${urlIds == null ? ' WHERE' : '$filter AND'} '
-      'NOT EXISTS (SELECT 1 FROM visits WHERE url_id = urls.id)',
-      variables: args,
-      updates: {_db.urls, _db.visits},
-      updateKind: UpdateKind.delete,
-    );
-    await _db.customUpdate(
-      'UPDATE urls SET '
-      'visit_count = (SELECT COUNT(*) FROM visits WHERE url_id = urls.id), '
-      "typed_count = (SELECT COUNT(*) FROM visits WHERE url_id = urls.id AND transition = '${PageTransition.typed.name}'), "
-      'last_visit_time = (SELECT MAX(visit_time) FROM visits WHERE url_id = urls.id)'
-      '$filter',
-      variables: args,
-      updates: {_db.urls},
-    );
+  /// SQLite limits how many `?` one statement may have; stay well below.
+  static const _maxIdsPerStatement = 500;
+
+  /// Recomputes visit/typed counts and last visit time of [urlIds] from the
+  /// visits that remain, and deletes those left without visits.
+  Future<void> _recountUrls({required Set<int> urlIds}) async {
+    final ids = urlIds.toList();
+    for (var start = 0; start < ids.length; start += _maxIdsPerStatement) {
+      final chunk = ids.skip(start).take(_maxIdsPerStatement).toList();
+      final filter = 'id IN (${List.filled(chunk.length, '?').join(', ')})';
+      final args = [for (final id in chunk) Variable.withInt(id)];
+      await _db.customUpdate(
+        'DELETE FROM urls WHERE $filter '
+        'AND NOT EXISTS (SELECT 1 FROM visits WHERE url_id = urls.id)',
+        variables: args,
+        updates: {_db.urls, _db.visits},
+        updateKind: UpdateKind.delete,
+      );
+      await _db.customUpdate(
+        'UPDATE urls SET '
+        'visit_count = (SELECT COUNT(*) FROM visits WHERE url_id = urls.id), '
+        "typed_count = (SELECT COUNT(*) FROM visits WHERE url_id = urls.id AND transition = '${PageTransition.typed.name}'), "
+        'last_visit_time = (SELECT MAX(visit_time) FROM visits WHERE url_id = urls.id) '
+        'WHERE $filter',
+        variables: args,
+        updates: {_db.urls},
+      );
+    }
   }
 }

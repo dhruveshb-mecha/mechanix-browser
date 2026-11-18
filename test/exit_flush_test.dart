@@ -48,7 +48,10 @@ void main() {
     final dir = Directory.systemTemp.createTempSync('exit_flush_test');
     addTearDown(() => dir.deleteSync(recursive: true));
     final file = File('${dir.path}/Bookmarks');
-    final model = await BookmarkModel.load(file); // 2.5 s save delay
+    final model = await BookmarkModel.load(
+      file,
+      saveDelay: const Duration(seconds: 10),
+    );
 
     flushOnExit([model.flush]);
     model.addUrl(model.bookmarkBar, title: 'Fav', url: 'https://fav/');

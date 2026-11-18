@@ -36,6 +36,8 @@ void main() {
     expect(await pragma(db, 'journal_mode'), 'wal');
     expect(await pragma(db, 'synchronous'), 1, reason: 'NORMAL');
     expect(await pragma(db, 'foreign_keys'), 1);
+    expect(await pragma(db, 'journal_size_limit'), 4194304);
+    expect(await pragma(db, 'temp_store'), 2, reason: 'MEMORY');
     expect(await pragma(db, 'user_version'), db.schemaVersion);
   });
 

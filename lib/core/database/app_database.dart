@@ -141,6 +141,11 @@ class AppDatabase extends _$AppDatabase {
     // corrupt the database.
     db.execute('PRAGMA journal_mode = WAL');
     db.execute('PRAGMA synchronous = NORMAL');
+    // The WAL file otherwise keeps its largest size; cap what's left after a
+    // checkpoint. Temporary tables/indexes (sorting, IN lists) stay in RAM
+    // rather than being written to flash.
+    db.execute('PRAGMA journal_size_limit = 4194304'); // 4 MB
+    db.execute('PRAGMA temp_store = MEMORY');
   }
 
   /// Bump on every schema change and add the matching step to [migration].

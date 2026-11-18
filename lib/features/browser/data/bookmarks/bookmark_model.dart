@@ -126,9 +126,9 @@ class BookmarkNode {
 /// Chromium's layout (`roots` → `bookmark_bar` / `other` / `synced`).
 ///
 /// Like Chromium: every change is applied in memory at once, and the whole
-/// tree is written [defaultSaveDelay] after the first change of a burst,
-/// atomically, keeping the previous file as `Bookmarks.bak` the first time
-/// it is replaced in a session.
+/// tree is written atomically after it, keeping the previous file as
+/// `Bookmarks.bak` the first time it is replaced in a session. Changes made
+/// together (in the same event-loop turn) share one write.
 class BookmarkModel {
   BookmarkModel._(this._writer, this.bookmarkBar, this.other, this.synced) {
     for (final root in roots) {
@@ -139,8 +139,11 @@ class BookmarkModel {
     }
   }
 
-  /// Chromium's `BookmarkStorage::kSaveDelay`.
-  static const defaultSaveDelay = Duration(milliseconds: 2500);
+  /// How long after a change the tree is written. Chromium waits 2.5 s
+  /// (`BookmarkStorage::kSaveDelay`) and flushes at shutdown; the elinux
+  /// embedder doesn't tell the app it is closing, so a delay could lose the
+  /// last edits. Bookmark edits are rare, so save right away.
+  static const defaultSaveDelay = Duration.zero;
   static const _version = 1;
 
   /// Loads the tree from [file].

@@ -19,6 +19,9 @@ class AppConstants {
   /// History entries loaded per page on the history screen.
   static const int historyPageSize = 50;
 
+  /// Wait this long after typing stops before searching history.
+  static const Duration searchDebounce = Duration(milliseconds: 150);
+
   /// Most history suggestions shown under the address bar.
   static const int maxHistorySuggestions = 10;
   static const int maxFavoritesCount = 5;

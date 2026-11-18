@@ -41,9 +41,18 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
         : repo.searchHistory(query, limit: limit, after: after);
   }
 
-  /// Replaces the list with the first page for [query].
-  Future<void> _loadFirstPage(String query, Emitter<HistoryState> emit) async {
+  /// Replaces the list with the first page for [query]. With [debounce], the
+  /// query only runs if no newer one arrives within that time.
+  Future<void> _loadFirstPage(
+    String query,
+    Emitter<HistoryState> emit, {
+    Duration debounce = Duration.zero,
+  }) async {
     final generation = ++_generation;
+    if (debounce > Duration.zero) {
+      await Future<void>.delayed(debounce);
+      if (generation != _generation) return;
+    }
     try {
       final items = await _page(query, null);
       if (generation != _generation) return;
@@ -77,7 +86,11 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
   Future<void> _onSearchQueryChanged(
     HistorySearchQueryChanged event,
     Emitter<HistoryState> emit,
-  ) => _loadFirstPage(event.query.trim(), emit);
+  ) => _loadFirstPage(
+    event.query.trim(),
+    emit,
+    debounce: AppConstants.searchDebounce,
+  );
 
   /// Appends the next page, if there is one and none is loading.
   Future<void> _onLoadMoreRequested(
@@ -90,11 +103,14 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
     try {
       final more = await _page(state.searchQuery, state.historyItems.last);
       if (generation != _generation) return;
-      final items = [...state.historyItems, ...more];
       emit(
         state.copyWith(
-          historyItems: items,
-          groupedSections: HistoryDateGrouper.groupHistory(items),
+          historyItems: [...state.historyItems, ...more],
+          // Group only the new page; it continues the last section.
+          groupedSections: HistoryDateGrouper.appendGroups(
+            state.groupedSections,
+            HistoryDateGrouper.groupHistory(more),
+          ),
           hasMore: more.length == AppConstants.historyPageSize,
           isLoadingMore: false,
         ),

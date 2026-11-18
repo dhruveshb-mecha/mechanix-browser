@@ -217,8 +217,23 @@ void main() {
       await reloaded.close();
     });
 
+    test('by default a change is on disk right after it is made', () async {
+      final model = await BookmarkModel.load(file);
+      model.addUrl(model.bookmarkBar, title: 'Fav', url: 'https://fav/');
+      model.addUrl(model.other, title: 'B', url: 'https://b/');
+      await waitFor(() => !model.hasPendingSave && file.existsSync());
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      final text = file.readAsStringSync();
+      expect(text, contains('https://fav/'));
+      expect(text, contains('https://b/'));
+      await model.close();
+    });
+
     test('flush writes pending changes at once', () async {
-      final model = await BookmarkModel.load(file); // 2.5 s delay
+      final model = await BookmarkModel.load(
+        file,
+        saveDelay: const Duration(seconds: 10),
+      );
       model.addUrl(model.other, title: 'A', url: 'https://a/');
       await model.flush();
       expect(model.hasPendingSave, isFalse);

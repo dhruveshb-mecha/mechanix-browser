@@ -243,7 +243,21 @@ void main() {
             (await repository.getHistory()).firstOrNull?.title == 'Page A',
       );
       expect((await visitRows(db)).single.transition, PageTransition.link);
-      expect(bloc.state.searchResults.map((h) => h.title), ['Page A']);
+      // Suggestions aren't refreshed while the address bar isn't in use.
+      expect(bloc.state.searchResults, isEmpty);
+    });
+
+    test('a title change refreshes suggestions while the address bar is in '
+        'use', () async {
+      bloc.add(
+        const BrowserBottomBarVisibilityChanged(true, isInteracting: true),
+      );
+      bloc.add(const BrowserUrlChanged(tabId: 't1', url: 'https://a/'));
+      bloc.add(const BrowserTitleChanged(tabId: 't1', title: 'Page A'));
+
+      await waitFor(
+        () async => bloc.state.searchResults.firstOrNull?.title == 'Page A',
+      );
     });
 
     test('a quick second URL in the same tab is a redirect', () async {

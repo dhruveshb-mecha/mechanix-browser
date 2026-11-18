@@ -32,8 +32,7 @@ class BookmarkService {
     return _model = await BookmarkModel.load(file);
   }
 
-  /// Writes pending bookmark changes now (the model otherwise saves them a
-  /// couple of seconds after a change).
+  /// Waits until pending bookmark changes are written.
   static Future<void> flush() async => _model?.flush();
 
   static Future<void> close() async {

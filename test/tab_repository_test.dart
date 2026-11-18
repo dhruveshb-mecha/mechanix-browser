@@ -25,10 +25,10 @@ class SlowTabRepository extends TabRepository {
   int writes = 0;
 
   @override
-  Future<void> replaceAllTabs(List<TabEntity> tabs) async {
+  Future<void> saveTabs(List<TabEntity> tabs) async {
     writes++;
     await Future<void>.delayed(const Duration(milliseconds: 30));
-    await super.replaceAllTabs(tabs);
+    await super.saveTabs(tabs);
   }
 }
 
@@ -62,29 +62,48 @@ void main() {
   setUp(() => db = AppDatabase(NativeDatabase.memory()));
   tearDown(() => db.close());
 
-  test('saves and restores tabs in tab order, with screenshots', () async {
+  test('saves and restores tabs in tab order', () async {
     final repository = TabRepository(db: db);
-    await repository.replaceAllTabs([
-      entity('b', 1),
-      entity('a', 0, active: true),
-    ]);
+    await repository.saveTabs([entity('b', 1), entity('a', 0, active: true)]);
 
     final tabs = await repository.getAllTabs();
     expect(tabs.map((t) => (t.tabId, t.tabIndex, t.isActive)), [
       ('a', 0, true),
       ('b', 1, false),
     ]);
-    expect(tabs.first.screenshot, [0, 1, 2]);
     expect(tabs.first.url, 'https://a.example/');
   });
 
-  test('replacing drops tabs that are gone', () async {
+  test('screenshots are saved per tab and kept by later tab saves', () async {
     final repository = TabRepository(db: db);
-    await repository.replaceAllTabs([entity('a', 0), entity('b', 1)]);
-    await repository.replaceAllTabs([entity('b', 0)]);
-    expect((await repository.getAllTabs()).map((t) => t.tabId), ['b']);
+    await repository.saveTabs([entity('a', 0), entity('b', 1)]);
+    expect((await repository.getAllTabs()).map((t) => t.screenshot), [
+      null,
+      null,
+    ], reason: 'saveTabs never writes screenshots');
 
-    await repository.replaceAllTabs([]);
+    await repository.saveScreenshot('b', Uint8List.fromList([7, 7]));
+    await repository.saveScreenshot('missing', Uint8List.fromList([1]));
+    // Reorder and rename: the screenshot stays with its tab.
+    final b = entity('b', 0)..title = 'renamed';
+    await repository.saveTabs([b, entity('a', 1)]);
+
+    final [first, second] = await repository.getAllTabs();
+    expect((first.tabId, first.title), ('b', 'renamed'));
+    expect(first.screenshot, [7, 7]);
+    expect((second.tabId, second.screenshot), ('a', null));
+  });
+
+  test('saving drops tabs that are gone and keeps row ids', () async {
+    final repository = TabRepository(db: db);
+    await repository.saveTabs([entity('a', 0), entity('b', 1)]);
+    final idOfB = (await repository.getAllTabs()).last.id;
+
+    await repository.saveTabs([entity('b', 0)]);
+    final [b] = await repository.getAllTabs();
+    expect((b.tabId, b.id), ('b', idOfB), reason: 'updated, not re-inserted');
+
+    await repository.saveTabs([]);
     expect(await repository.getAllTabs(), isEmpty);
   });
 

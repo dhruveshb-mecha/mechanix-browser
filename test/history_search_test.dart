@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mechanix_browser/core/database/app_database.dart';
 import 'package:mechanix_browser/core/utils/app_theme.dart';
 import 'package:mechanix_browser/core/utils/constants.dart';
+import 'package:mechanix_browser/core/utils/history_date_grouper.dart';
 import 'package:mechanix_browser/features/browser/bloc/browser_bloc.dart';
 import 'package:mechanix_browser/features/browser/bloc/history/history_bloc.dart';
 import 'package:mechanix_browser/features/browser/data/models/bookmark.dart';
@@ -172,6 +173,26 @@ void main() {
     );
   });
 
+  test('appendGroups merges a page into the section it continues', () {
+    BrowserHistory h(int id) =>
+        BrowserHistory(id: id, url: 'u$id', title: '', timestamp: id);
+    final existing = [
+      HistoryGroup(title: 'Today', items: [h(1)]),
+      HistoryGroup(title: 'Yesterday', items: [h(2)]),
+    ];
+    final merged = HistoryDateGrouper.appendGroups(existing, [
+      HistoryGroup(title: 'Yesterday', items: [h(3)]),
+      HistoryGroup(title: 'This week', items: [h(4)]),
+    ]);
+    expect(merged.map((g) => g.title), ['Today', 'Yesterday', 'This week']);
+    expect(merged.map((g) => g.items.map((i) => i.id).join(',')), [
+      '1',
+      '2,3',
+      '4',
+    ]);
+    expect(HistoryDateGrouper.appendGroups(const [], existing), existing);
+  });
+
   test('Bookmark.matches checks title and URL, ignoring case', () {
     final b = Bookmark.create(
       url: 'https://flutter.dev/docs',
@@ -218,6 +239,7 @@ void main() {
       expect(find.textContaining('banana', findRichText: true), findsWidgets);
 
       await tester.enterText(find.byType(TextField), 'apple');
+      await tester.pump(AppConstants.searchDebounce); // fake time
       await tester.runAsync(
         () => waitFor(() => bloc.state.historyItems.length == 1),
       );
@@ -226,6 +248,7 @@ void main() {
       expect(find.textContaining('apple', findRichText: true), findsWidgets);
 
       await tester.enterText(find.byType(TextField), 'cherry');
+      await tester.pump(AppConstants.searchDebounce);
       await tester.runAsync(
         () => waitFor(() => bloc.state.historyItems.isEmpty),
       );
