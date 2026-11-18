@@ -42,10 +42,11 @@ class BrowserMenuListSection extends StatelessWidget {
     BuildContext context,
     String routeName,
   ) async {
+    final navigator = Navigator.of(context);
+    final bloc = context.read<BrowserBloc>();
     try {
-      final navigator = Navigator.of(context);
       hideMenu();
-      context.read<BrowserBloc>().add(const BrowserWasHiddenRequested(true));
+      bloc.add(const BrowserWasHiddenRequested(true));
       await navigator.pushNamed(routeName);
     } catch (e, stackTrace) {
       AppLogger.e(
@@ -54,9 +55,9 @@ class BrowserMenuListSection extends StatelessWidget {
         stack: stackTrace,
       );
     } finally {
-      if (context.mounted) {
-        context.read<BrowserBloc>().add(const BrowserWasHiddenRequested(false));
-      }
+      // Always show the webview again; a hidden CEF browser keeps navigating
+      // but stops painting, which looks like a frozen page.
+      bloc.add(const BrowserWasHiddenRequested(false));
     }
   }
 
