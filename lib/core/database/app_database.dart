@@ -1,0 +1,144 @@
+import 'package:drift/drift.dart';
+import 'package:mechanix_browser/features/browser/data/models/browser_history.dart';
+import 'package:mechanix_browser/features/browser/data/models/download_entity.dart';
+import 'package:mechanix_browser/features/browser/data/models/page_transition.dart';
+import 'package:mechanix_browser/features/browser/data/models/tab_entity.dart';
+
+part 'app_database.g.dart';
+
+// Times are milliseconds since the Unix epoch, as everywhere else in the app.
+/// One row per unique URL (Chromium's `urls` table).
+@DataClassName('HistoryUrl')
+class Urls extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get url => text().unique()();
+  TextColumn get title => text().withDefault(const Constant(''))();
+
+  /// Number of visits to this URL.
+  IntColumn get visitCount => integer().withDefault(const Constant(0))();
+
+  /// Number of those visits where the URL was typed in the address bar.
+  IntColumn get typedCount => integer().withDefault(const Constant(0))();
+  IntColumn get lastVisitTime => integer()();
+
+  /// Hidden URLs (e.g. redirect hops) are kept for counting but not shown in
+  /// history or suggestions.
+  BoolColumn get hidden => boolean().withDefault(const Constant(false))();
+}
+
+/// One row per visit to a URL (Chromium's `visits` table).
+@DataClassName('HistoryVisit')
+@TableIndex(name: 'visits_url_id', columns: {#urlId})
+@TableIndex(name: 'visits_visit_time', columns: {#visitTime})
+@TableIndex(name: 'visits_from_visit', columns: {#fromVisit})
+class Visits extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get urlId =>
+      integer().references(Urls, #id, onDelete: KeyAction.cascade)();
+  IntColumn get visitTime => integer()();
+  TextColumn get transition => textEnum<PageTransition>()();
+
+  /// The visit this one came from, for redirect chains.
+  IntColumn get fromVisit => integer().nullable().references(
+    Visits,
+    #id,
+    onDelete: KeyAction.setNull,
+  )();
+}
+
+/// Visits joined with their URL, as the history list shows them: one
+/// [BrowserHistory] per visit (`id` is the visit id), hidden URLs left out.
+@DriftView(name: 'history_entries')
+@UseRowClass(BrowserHistory)
+abstract class HistoryEntries extends View {
+  Visits get visits;
+  Urls get urls;
+
+  Expression<int> get timestamp => visits.visitTime;
+
+  @override
+  Query as() =>
+      select([visits.id, urls.url, urls.title, timestamp]).from(visits).join([
+        innerJoin(urls, urls.id.equalsExp(visits.urlId)),
+      ])..where(urls.hidden.not());
+}
+
+@UseRowClass(DownloadEntity)
+@TableIndex(name: 'downloads_cef_download_id', columns: {#cefDownloadId})
+class Downloads extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get cefDownloadId => integer()();
+  TextColumn get url => text()();
+  TextColumn get fileName => text()();
+  TextColumn get filePath => text()();
+  IntColumn get totalBytes => integer().withDefault(const Constant(-1))();
+  IntColumn get downloadedBytes => integer().withDefault(const Constant(0))();
+
+  /// `DownloadStatus.index`.
+  IntColumn get statusIndex => integer()();
+  IntColumn get createdAt => integer()();
+  IntColumn get completedAt => integer().nullable()();
+  TextColumn get errorMessage => text().nullable()();
+}
+
+@UseRowClass(TabEntity)
+class Tabs extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get tabId => text().unique()();
+  IntColumn get tabIndex => integer()();
+  TextColumn get url => text()();
+  TextColumn get title => text()();
+  BoolColumn get isActive => boolean()();
+  BlobColumn get screenshot => blob().nullable()();
+}
+
+@DriftDatabase(tables: [Urls, Visits, Downloads, Tabs], views: [HistoryEntries])
+class AppDatabase extends _$AppDatabase {
+  AppDatabase(super.executor);
+
+  /// Bump on every schema change and add the matching step to [migration].
+  @override
+  int get schemaVersion => 1;
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+    onCreate: (m) => m.createAll(),
+    onUpgrade: (m, from, to) async {
+      // Add one step per version, e.g.
+      // if (from < 2) await m.addColumn(tabs, tabs.isPinned);
+    },
+    // SQLite leaves foreign keys off per connection; visits rely on them for
+    // ON DELETE CASCADE / SET NULL.
+    beforeOpen: (details) => customStatement('PRAGMA foreign_keys = ON'),
+  );
+}
+
+Value<int> _idValue(int id) => id == 0 ? const Value.absent() : Value(id);
+
+extension DownloadEntityToCompanion on DownloadEntity {
+  DownloadsCompanion toCompanion() => DownloadsCompanion(
+    id: _idValue(id),
+    cefDownloadId: Value(cefDownloadId),
+    url: Value(url),
+    fileName: Value(fileName),
+    filePath: Value(filePath),
+    totalBytes: Value(totalBytes),
+    downloadedBytes: Value(downloadedBytes),
+    statusIndex: Value(statusIndex),
+    createdAt: Value(createdAt),
+    completedAt: Value(completedAt),
+    errorMessage: Value(errorMessage),
+  );
+}
+
+extension TabEntityToCompanion on TabEntity {
+  TabsCompanion toCompanion() => TabsCompanion(
+    id: _idValue(id),
+    tabId: Value(tabId),
+    tabIndex: Value(tabIndex),
+    url: Value(url),
+    title: Value(title),
+    isActive: Value(isActive),
+    screenshot: Value(screenshot),
+  );
+}

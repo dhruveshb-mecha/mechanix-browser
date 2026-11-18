@@ -63,6 +63,7 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
   drift_dev: ^2.35.3
+  ffi: ^2.2.0
 
 # drift uses the system SQLite. The default sqlite3 hook bundles lib/libsqlite3.so,
 # but Dart then dlopen()s "libsqlite3.so" by bare name, which flutter-elinux doesn't

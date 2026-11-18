@@ -1,10 +1,6 @@
-import 'package:objectbox/objectbox.dart';
-
 enum BookmarkType { bookmark, favorite }
 
-@Entity()
 class Bookmark {
-  @Id()
   int id;
 
   String url;
@@ -49,7 +45,6 @@ class Bookmark {
     );
   }
 
-  @Transient()
   BookmarkType get type {
     return BookmarkType.values.firstWhere(
       (e) => e.name == typeString,

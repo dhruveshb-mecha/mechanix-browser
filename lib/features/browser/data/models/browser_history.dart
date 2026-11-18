@@ -1,8 +1,4 @@
-import 'package:objectbox/objectbox.dart';
-
-@Entity()
 class BrowserHistory {
-  @Id()
   int id = 0;
 
   String url;
