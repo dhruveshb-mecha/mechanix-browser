@@ -84,8 +84,12 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
   }
 
   /// Initializes a new instance of [BrowserBloc] and registers the event handlers.
-  BrowserBloc({this.downloadBloc, this._historyRepository, this._tabRepository})
-    : super(BrowserState.initial()) {
+  BrowserBloc({
+    this.downloadBloc,
+    this._historyRepository,
+    this._tabRepository,
+    this._bookmarkRepository,
+  }) : super(BrowserState.initial()) {
     on<BrowserInitialized>(_onInitialized);
     on<BrowserUrlLoadRequested>(_onUrlLoadRequested);
     on<BrowserGoBackRequested>(_onGoBack);
@@ -320,7 +324,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
   ) async {
     try {
       _historyRepository ??= HistoryRepositoryImpl();
-      _bookmarkRepository = BookmarkRepository();
+      _bookmarkRepository ??= BookmarkRepository();
       _tabRepository ??= TabRepository();
       await _expireOldHistory();
 
@@ -874,6 +878,9 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     _pendingTabsSnapshot = tabsToSave;
     _tabsWrite ??= _writePendingTabs();
   }
+
+  /// Completes once the latest tab list has been saved.
+  Future<void> flushPendingWrites() async => _tabsWrite;
 
   Future<void> _writePendingTabs() async {
     while (_pendingTabsSnapshot != null) {
@@ -1522,8 +1529,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
       tab.controller.dispose();
     }
     await WebviewManager().quit();
-    await _tabsWrite; // finish saving the last tab list
-    _bookmarkRepository?.close();
+    await flushPendingWrites();
     return super.close();
   }
 }

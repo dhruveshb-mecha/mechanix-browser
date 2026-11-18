@@ -111,6 +111,9 @@ class DownloadBloc extends Bloc<DownloadEvent, DownloadState> {
     unawaited(_saveDownloadToRepo(download));
   }
 
+  /// Completes once every database write requested so far has finished.
+  Future<void> flushPendingWrites() => _writes;
+
   /// Runs repository writes one at a time, in the order they were requested.
   Future<T> _queueWrite<T>(Future<T> Function() write) {
     final result = _writes.then((_) => write());
@@ -761,7 +764,7 @@ class DownloadBloc extends Bloc<DownloadEvent, DownloadState> {
         }
       }
 
-      await _writes; // let queued progress saves finish
+      await flushPendingWrites(); // let queued progress saves finish
       _controllerManager.close();
       _lastDbSaveMap.clear();
       _pendingRetryRecordIds.clear();

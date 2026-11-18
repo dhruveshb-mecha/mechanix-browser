@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mechanix_browser/core/routes/app_routes.dart';
+import 'package:mechanix_browser/core/services/bookmark_service.dart';
 import 'package:mechanix_browser/core/services/database_service.dart';
+import 'package:mechanix_browser/core/services/exit_flush.dart';
 import 'package:mechanix_browser/core/services/objectbox_service.dart';
 import 'package:mechanix_browser/core/utils/constants.dart';
 import 'package:mechanix_browser/core/utils/app_theme.dart';
@@ -28,6 +30,7 @@ void main(List<String> args) async {
   );
   await ObjectBoxService.initialize();
   await DatabaseService.initialize();
+  await BookmarkService.initialize();
 
   runApp(MyApp(initialUrl: deepLinkUrl));
 }
@@ -61,6 +64,16 @@ class _MyAppState extends State<MyApp> {
     }
 
     _setupSingletonListener();
+    _setupExitListener();
+  }
+
+  /// Saves pending bookmarks, tabs and downloads when the window closes.
+  void _setupExitListener() {
+    flushOnExit([
+      BookmarkService.flush,
+      _browserBloc.flushPendingWrites,
+      _downloadBloc.flushPendingWrites,
+    ]);
   }
 
   void _setupSingletonListener() {
