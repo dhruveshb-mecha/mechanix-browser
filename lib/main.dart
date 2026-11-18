@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mechanix_browser/core/routes/app_routes.dart';
+import 'package:mechanix_browser/core/services/database_service.dart';
 import 'package:mechanix_browser/core/services/objectbox_service.dart';
 import 'package:mechanix_browser/core/utils/constants.dart';
 import 'package:mechanix_browser/core/utils/app_theme.dart';
@@ -26,6 +27,7 @@ void main(List<String> args) async {
     userAgent: AppConstants.defaultUserAgent,
   );
   await ObjectBoxService.initialize();
+  await DatabaseService.initialize();
 
   runApp(MyApp(initialUrl: deepLinkUrl));
 }

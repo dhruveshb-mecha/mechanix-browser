@@ -1,4 +1,8 @@
+import 'dart:io';
+
 import 'package:drift/drift.dart';
+import 'package:drift/native.dart';
+import 'package:sqlite3/sqlite3.dart' show Database;
 import 'package:mechanix_browser/features/browser/data/models/browser_history.dart';
 import 'package:mechanix_browser/features/browser/data/models/download_entity.dart';
 import 'package:mechanix_browser/features/browser/data/models/page_transition.dart';
@@ -95,6 +99,19 @@ class Tabs extends Table {
 @DriftDatabase(tables: [Urls, Visits, Downloads, Tabs], views: [HistoryEntries])
 class AppDatabase extends _$AppDatabase {
   AppDatabase(super.executor);
+
+  /// Opens the database in [file], running SQLite on a background isolate so
+  /// queries never block the UI.
+  factory AppDatabase.open(File file) =>
+      AppDatabase(NativeDatabase.createInBackground(file, setup: _setup));
+
+  static void _setup(Database db) {
+    // WAL lets history writes and UI reads run at the same time. With WAL,
+    // synchronous=NORMAL can only lose the last commits on power loss, never
+    // corrupt the database.
+    db.execute('PRAGMA journal_mode = WAL');
+    db.execute('PRAGMA synchronous = NORMAL');
+  }
 
   /// Bump on every schema change and add the matching step to [migration].
   @override

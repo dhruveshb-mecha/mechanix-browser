@@ -3,7 +3,18 @@ class AppConstants {
   static const String searchUrlPrefix = 'https://www.google.com/search?q=';
   static const String defaultUserAgent = 'test/userAgent';
   static const String defaultScheme = 'https://';
-  static const String dbPath = '.config/mechanix_apps/browser/objectbox';
+
+  /// Browser data directory, relative to $HOME (Chromium's profile dir).
+  static const String profileDir = '.config/mechanix_apps/browser';
+
+  /// SQLite database (history, downloads, tabs) in [profileDir].
+  static const String databaseFileName = 'browser.sqlite';
+
+  /// Bookmarks JSON file in [profileDir].
+  static const String bookmarksFileName = 'Bookmarks';
+
+  /// ObjectBox store; goes away once everything is on drift.
+  static const String dbPath = '$profileDir/objectbox';
   static const int maxFavoritesCount = 5;
   static const Duration bottomBarAutoHideDuration = Duration(seconds: 2);
 }
