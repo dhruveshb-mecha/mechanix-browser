@@ -44,7 +44,7 @@ jobs:
             libwayland-egl-backend-dev libegl1-mesa-dev libgles2-mesa-dev libxkbcommon-dev \
             libgstreamer1.0-dev \
             libgstreamer-plugins-base1.0-dev \
-            libpng-dev \
+            libpng-dev libsqlite3-dev \
             build-essential jq pipx
 
       - name: Install nfpm
