@@ -1,87 +1,56 @@
-import 'package:mechanix_browser/core/services/objectbox_service.dart';
+import 'package:drift/drift.dart';
+import 'package:mechanix_browser/core/database/app_database.dart';
+import 'package:mechanix_browser/core/services/database_service.dart';
 import 'package:mechanix_browser/core/utils/app_logger.dart';
 import 'package:mechanix_browser/features/browser/data/models/download_entity.dart';
 import 'package:mechanix_browser/features/browser/data/repositories/download_repository.dart';
-import 'package:mechanix_browser/objectbox.g.dart';
 
 class DownloadRepositoryImpl implements DownloadRepository {
-  @override
-  final Store store;
+  DownloadRepositoryImpl({AppDatabase? db}) : _db = db ?? DatabaseService.db;
+
+  final AppDatabase _db;
 
   @override
-  late final Box<DownloadEntity> downloadBox;
-
-  DownloadRepositoryImpl({Store? store})
-    : store = store ?? ObjectBoxService.store {
-    downloadBox = this.store.box<DownloadEntity>();
-  }
-
-  /// Fetches all stored download records ordered by creation timestamp descending (newest first).
-  @override
-  List<DownloadEntity> getAllDownloads() {
+  Future<List<DownloadEntity>> getAllDownloads() async {
     try {
-      final query =
-          (downloadBox.query()
-                ..order(DownloadEntity_.createdAt, flags: Order.descending))
-              .build();
-      try {
-        return query.find();
-      } finally {
-        query.close();
-      }
+      return await (_db.select(_db.downloads)..orderBy([
+            (d) => OrderingTerm.desc(d.createdAt),
+            (d) => OrderingTerm.desc(d.id),
+          ]))
+          .get();
     } catch (e, stackTrace) {
       AppLogger.e(
         '[DownloadRepository] Unable to load download history: $e',
         error: e,
         stack: stackTrace,
       );
-      return [];
+      rethrow;
     }
   }
 
-  /// Fetches a single download record by its ObjectBox primary key [id].
   @override
-  DownloadEntity? getDownloadById(int id) {
-    try {
-      return downloadBox.get(id);
-    } catch (e, stackTrace) {
-      AppLogger.e(
-        '[DownloadRepository] Error fetching download by id $id: $e',
-        error: e,
-        stack: stackTrace,
-      );
-      return null;
-    }
-  }
+  Future<DownloadEntity?> getDownloadById(int id) => _orNull(
+    'fetching download by id $id',
+    () => (_db.select(
+      _db.downloads,
+    )..where((d) => d.id.equals(id))).getSingleOrNull(),
+  );
 
-  /// Queries a download record by its ephemeral CEF download identifier [cefDownloadId].
   @override
-  DownloadEntity? getDownloadByCefId(int cefDownloadId) {
-    try {
-      final query = downloadBox
-          .query(DownloadEntity_.cefDownloadId.equals(cefDownloadId))
-          .build();
-      try {
-        final results = query.find();
-        return results.isNotEmpty ? results.first : null;
-      } finally {
-        query.close();
-      }
-    } catch (e, stackTrace) {
-      AppLogger.e(
-        '[DownloadRepository] Error fetching download by CEF id $cefDownloadId: $e',
-        error: e,
-        stack: stackTrace,
-      );
-      return null;
-    }
-  }
+  Future<DownloadEntity?> getDownloadByCefId(int cefDownloadId) => _orNull(
+    'fetching download by CEF id $cefDownloadId',
+    () =>
+        (_db.select(_db.downloads)
+              ..where((d) => d.cefDownloadId.equals(cefDownloadId))
+              ..orderBy([(d) => OrderingTerm.desc(d.id)])
+              ..limit(1))
+            .getSingleOrNull(),
+  );
 
-  /// Saves or updates a download entity in ObjectBox storage and returns assigned primary key.
   @override
-  int saveDownload(DownloadEntity entity) {
+  Future<int> saveDownload(DownloadEntity entity) async {
     try {
-      return downloadBox.put(entity);
+      return await _save(entity);
     } catch (e, stackTrace) {
       AppLogger.e(
         '[DownloadRepository] Unable to save download entity (id=${entity.id}): $e',
@@ -92,11 +61,12 @@ class DownloadRepositoryImpl implements DownloadRepository {
     }
   }
 
-  /// Batch saves multiple download entities into ObjectBox in a single transaction.
   @override
-  List<int> saveAllDownloads(List<DownloadEntity> entities) {
+  Future<List<int>> saveAllDownloads(List<DownloadEntity> entities) async {
     try {
-      return downloadBox.putMany(entities);
+      return await _db.transaction(() async {
+        return [for (final entity in entities) await _save(entity)];
+      });
     } catch (e, stackTrace) {
       AppLogger.e(
         '[DownloadRepository] Unable to batch save download entities: $e',
@@ -107,17 +77,31 @@ class DownloadRepositoryImpl implements DownloadRepository {
     }
   }
 
-  /// Deletes a download entity from ObjectBox storage by its primary key [id].
+  /// Inserts or updates [entity] and stores the id on it, like ObjectBox's
+  /// `put` did.
+  Future<int> _save(DownloadEntity entity) async {
+    if (entity.id == 0) {
+      entity.id = await _db.into(_db.downloads).insert(entity.toCompanion());
+    } else {
+      await _db
+          .into(_db.downloads)
+          .insertOnConflictUpdate(entity.toCompanion());
+    }
+    return entity.id;
+  }
+
   @override
-  bool deleteDownload(int id) {
+  Future<bool> deleteDownload(int id) async {
     try {
-      final removed = downloadBox.remove(id);
-      if (!removed) {
+      final removed = await (_db.delete(
+        _db.downloads,
+      )..where((d) => d.id.equals(id))).go();
+      if (removed == 0) {
         AppLogger.w(
-          '[DownloadRepository] Attempted to delete record id=$id, but it was not found in ObjectBox',
+          '[DownloadRepository] Attempted to delete record id=$id, but it was not found',
         );
       }
-      return removed;
+      return removed > 0;
     } catch (e, stackTrace) {
       AppLogger.e(
         '[DownloadRepository] Unable to delete download entity $id: $e',
@@ -128,11 +112,10 @@ class DownloadRepositoryImpl implements DownloadRepository {
     }
   }
 
-  /// Removes all download entities from persistent storage.
   @override
-  void clearHistory() {
+  Future<void> clearHistory() async {
     try {
-      downloadBox.removeAll();
+      await _db.delete(_db.downloads).go();
     } catch (e, stackTrace) {
       AppLogger.e(
         '[DownloadRepository] Unable to clear download history: $e',
@@ -142,7 +125,16 @@ class DownloadRepositoryImpl implements DownloadRepository {
     }
   }
 
-  /// Closes repository resources. Note: The underlying ObjectBox Store is managed globally by [ObjectBoxService].
-  @override
-  void close() {}
+  Future<T?> _orNull<T>(String what, Future<T?> Function() query) async {
+    try {
+      return await query();
+    } catch (e, stackTrace) {
+      AppLogger.e(
+        '[DownloadRepository] Error $what: $e',
+        error: e,
+        stack: stackTrace,
+      );
+      return null;
+    }
+  }
 }
