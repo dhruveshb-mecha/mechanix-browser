@@ -40,6 +40,14 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
   Timer? _hideTimer;
   bool _isInteracting = false;
 
+  /// Tabs whose page currently allows pull-to-refresh, as reported by the
+  /// page script for the touch in progress. Read at gesture time, so it is a
+  /// plain set rather than state (no rebuilds on every touch).
+  final Set<String> _pullToRefreshTabs = {};
+
+  /// Whether a downward pull on [tabId]'s page may refresh it.
+  bool canPullToRefresh(String tabId) => _pullToRefreshTabs.contains(tabId);
+
   static const Duration bottomBarAutoHideDuration =
       AppConstants.bottomBarAutoHideDuration;
 
@@ -178,8 +186,13 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
           JavascriptChannel(
             name: 'ScrollChannel',
             onMessageReceived: (JavascriptMessage message) {
-              if (message.message == 'atTop') {
-                add(const BrowserBottomBarVisibilityChanged(true));
+              switch (message.message) {
+                case 'atTop':
+                  add(const BrowserBottomBarVisibilityChanged(true));
+                case 'pull:on':
+                  _pullToRefreshTabs.add(tabId);
+                case 'pull:off':
+                  _pullToRefreshTabs.remove(tabId);
               }
             },
           ),
@@ -192,6 +205,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
       },
       onLoadStart: (c, url) {
         AppLogger.i("onLoadStart => $url");
+        _pullToRefreshTabs.remove(tabId);
         add(BrowserLoadStarted(tabId: tabId));
       },
       onLoadError: (c, errorCode, errorText, failedUrl, isMainFrame) {
@@ -210,6 +224,10 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
 
         c.executeJavaScript('''
           (function() {
+            // onLoadEnd fires per frame load; add the listeners only once.
+            if (window.__mxScrollScript) return;
+            window.__mxScrollScript = true;
+
             let lastScrollY = window.scrollY;
             let atTop = lastScrollY === 0;
 
@@ -226,7 +244,40 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
                 atTop = false;
                 ScrollChannel('leftTop');
               }
-            });
+            }, {passive: true});
+
+            // Pull-to-refresh: decide once per touch whether a downward pull
+            // may refresh, and tell the browser only when that changes.
+            let canPull = false;
+            function setPull(value) {
+              if (value === canPull) return;
+              canPull = value;
+              ScrollChannel(value ? 'pull:on' : 'pull:off');
+            }
+            function blocksPull(el) {
+              const root = document.scrollingElement || document.documentElement;
+              if (root.scrollTop > 0) return true;
+              const rootStyle = getComputedStyle(root).overscrollBehaviorY;
+              if (rootStyle === 'none' || rootStyle === 'contain') return true;
+              for (; el && el !== root && el.nodeType === 1; el = el.parentElement) {
+                if (el.tagName === 'IFRAME') return true;
+                // Only scrolled elements matter, so check scrollTop before
+                // the (costlier) computed style.
+                if (el.scrollTop > 0) {
+                  const oy = getComputedStyle(el).overflowY;
+                  if (oy === 'auto' || oy === 'scroll') return true;
+                }
+              }
+              return false;
+            }
+            window.addEventListener('touchstart', (e) => {
+              setPull(e.touches.length === 1 && !blocksPull(e.target));
+            }, {passive: true});
+            // A page that handles the drag itself (maps, its own
+            // pull-to-refresh) cancels it: no refresh then.
+            window.addEventListener('touchmove', (e) => {
+              if (canPull && e.defaultPrevented) setPull(false);
+            }, {passive: true});
           })();
         ''');
       },
@@ -571,6 +622,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
       final index = tabsList.indexWhere((t) => t.id == tabId);
       if (index == -1) return;
       final tabToClose = tabsList[index];
+      _pullToRefreshTabs.remove(tabId);
 
       /// If only one tab remains in that list
       if (tabsList.length == 1) {
@@ -761,6 +813,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
       final tabsList = isPrivate ? state.privateTabs : state.normalTabs;
 
       for (final tab in tabsList) {
+        _pullToRefreshTabs.remove(tab.id);
         try {
           unawaited(_disposeOrDeferController(tab.controller));
         } catch (e, stackTrace) {
