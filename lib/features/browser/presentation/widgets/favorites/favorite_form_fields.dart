@@ -60,6 +60,7 @@ class FavoriteFormFields extends StatelessWidget {
         const SizedBox(height: 6),
         TextFormField(
           controller: urlController,
+          keyboardType: TextInputType.url,
           style: TextStyle(color: colors.searchBarText),
           decoration: InputDecoration(
             hintText: l10n.urlHint,
