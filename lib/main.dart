@@ -27,8 +27,10 @@ void main(List<String> args) async {
   await WebviewManager().initialize(
     userAgent: AppConstants.defaultUserAgent,
   );
-  await DatabaseService.initialize();
-  await BookmarkService.initialize();
+  await Future.wait([
+    DatabaseService.initialize(),
+    BookmarkService.initialize(),
+  ]);
 
   runApp(MyApp(initialUrl: deepLinkUrl));
 }
