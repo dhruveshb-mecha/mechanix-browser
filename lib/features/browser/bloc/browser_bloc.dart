@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:equatable/equatable.dart';
 import 'package:flutter/material.dart';
@@ -47,6 +48,18 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
 
   /// Whether a downward pull on [tabId]'s page may refresh it.
   bool canPullToRefresh(String tabId) => _pullToRefreshTabs.contains(tabId);
+
+  /// webview_cef's JS channels deliver the page's value JSON-encoded, so
+  /// `ScrollChannel('atTop')` arrives as `"atTop"`. Returns the plain string.
+  static String _channelMessage(String raw) {
+    try {
+      final value = jsonDecode(raw);
+      if (value is String) return value;
+    } on FormatException {
+      // Not JSON: use it as is.
+    }
+    return raw;
+  }
 
   static const Duration bottomBarAutoHideDuration =
       AppConstants.bottomBarAutoHideDuration;
@@ -163,40 +176,43 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     WebViewController controller, {
     bool isPrivate = false,
   }) {
+    // Defined once per tab, registered on URL change and again at load end
+    // (see onLoadEnd).
+    final Set<JavascriptChannel> jsChannels = {
+      JavascriptChannel(
+        name: 'Print',
+        onMessageReceived: (JavascriptMessage message) {
+          AppLogger.i(message.message);
+          controller.sendJavaScriptChannelCallBack(
+            false,
+            "{'code':'200','message':'print succeed!'}",
+            message.callbackId,
+            message.frameId,
+          );
+        },
+      ),
+      JavascriptChannel(
+        name: 'ScrollChannel',
+        onMessageReceived: (JavascriptMessage message) {
+          final msg = _channelMessage(message.message);
+          switch (msg) {
+            case 'atTop':
+              add(const BrowserBottomBarVisibilityChanged(true));
+            case 'pull:on':
+              _pullToRefreshTabs.add(tabId);
+            case 'pull:off':
+              _pullToRefreshTabs.remove(tabId);
+          }
+        },
+      ),
+    };
+
     return WebviewEventsListener(
       onTitleChanged: (t) {
         add(BrowserTitleChanged(tabId: tabId, title: t));
       },
       onUrlChanged: (url) {
         add(BrowserUrlChanged(tabId: tabId, url: url));
-
-        final Set<JavascriptChannel> jsChannels = {
-          JavascriptChannel(
-            name: 'Print',
-            onMessageReceived: (JavascriptMessage message) {
-              AppLogger.i(message.message);
-              controller.sendJavaScriptChannelCallBack(
-                false,
-                "{'code':'200','message':'print succeed!'}",
-                message.callbackId,
-                message.frameId,
-              );
-            },
-          ),
-          JavascriptChannel(
-            name: 'ScrollChannel',
-            onMessageReceived: (JavascriptMessage message) {
-              switch (message.message) {
-                case 'atTop':
-                  add(const BrowserBottomBarVisibilityChanged(true));
-                case 'pull:on':
-                  _pullToRefreshTabs.add(tabId);
-                case 'pull:off':
-                  _pullToRefreshTabs.remove(tabId);
-              }
-            },
-          ),
-        };
         controller.setJavaScriptChannels(jsChannels);
         controller.executeJavaScript("function abc(e){return 'abc:'+ e}");
         controller
@@ -222,27 +238,35 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
       onLoadEnd: (c, url) {
         add(BrowserLoadEnded(tabId: tabId));
 
+        // Registering the channels on URL change can run before the new
+        // page's JS context exists, leaving ScrollChannel undefined. Register
+        // again now; CEF runs this before the script below.
+        c.setJavaScriptChannels(jsChannels);
         c.executeJavaScript('''
           (function() {
             // onLoadEnd fires per frame load; add the listeners only once.
             if (window.__mxScrollScript) return;
             window.__mxScrollScript = true;
+            // Never let a missing channel abort the script.
+            function post(m) {
+              if (typeof ScrollChannel === 'function') ScrollChannel(m);
+            }
 
             let lastScrollY = window.scrollY;
             let atTop = lastScrollY === 0;
 
             if (atTop) {
-              ScrollChannel('atTop');
+              post('atTop');
             }
 
             window.addEventListener('scroll', () => {
               const currentScrollY = window.scrollY;
               if (currentScrollY === 0 && !atTop) {
                 atTop = true;
-                ScrollChannel('atTop');
+                post('atTop');
               } else if (currentScrollY > 0 && atTop) {
                 atTop = false;
-                ScrollChannel('leftTop');
+                post('leftTop');
               }
             }, {passive: true});
 
@@ -252,7 +276,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
             function setPull(value) {
               if (value === canPull) return;
               canPull = value;
-              ScrollChannel(value ? 'pull:on' : 'pull:off');
+              post(value ? 'pull:on' : 'pull:off');
             }
             function blocksPull(el) {
               const root = document.scrollingElement || document.documentElement;
