@@ -466,7 +466,10 @@ class _BrowserGestureNavigatorState extends State<BrowserGestureNavigator>
                 event.localPosition,
                 width,
               );
-              _isGestureRejected = false;
+              // While text is selected, horizontal drags move the selection
+              // handles, so they must not navigate.
+              _isGestureRejected =
+                  widget.tab.controller.touchSelection.isActive;
               _hasNavigated = false;
               _gestureType = _GestureType.undecided;
               _accumulatedScroll = 0.0;
@@ -530,6 +533,14 @@ class _BrowserGestureNavigatorState extends State<BrowserGestureNavigator>
                     }
                   }
                 }
+              }
+
+              // A long press can select text mid-gesture; from then on the
+              // drag moves the selection, so it must not navigate.
+              if (!_isGestureRejected &&
+                  widget.tab.controller.touchSelection.isActive) {
+                _isGestureRejected = true;
+                _dismissIndicatorImmediate();
               }
 
               if (_isGestureRejected || _hasNavigated) {
