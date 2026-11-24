@@ -51,4 +51,41 @@ void main() {
       expect(direction, SwipeDirection.none);
     });
   });
+
+  group('SwipeGestureClassifier.edgeSwipeFor', () {
+    const width = 540.0;
+
+    test('left edge start -> back', () {
+      expect(
+        SwipeGestureClassifier.edgeSwipeFor(const Offset(5, 300), width),
+        SwipeDirection.back,
+      );
+    });
+
+    test('right edge start -> forward', () {
+      expect(
+        SwipeGestureClassifier.edgeSwipeFor(const Offset(535, 300), width),
+        SwipeDirection.forward,
+      );
+    });
+
+    test('middle start -> none', () {
+      expect(
+        SwipeGestureClassifier.edgeSwipeFor(const Offset(270, 300), width),
+        SwipeDirection.none,
+      );
+    });
+
+    test('just inside the edge zone counts, just outside does not', () {
+      const edge = SwipeGestureClassifier.edgeWidth;
+      expect(
+        SwipeGestureClassifier.edgeSwipeFor(const Offset(edge, 0), width),
+        SwipeDirection.back,
+      );
+      expect(
+        SwipeGestureClassifier.edgeSwipeFor(const Offset(edge + 1, 0), width),
+        SwipeDirection.none,
+      );
+    });
+  });
 }
