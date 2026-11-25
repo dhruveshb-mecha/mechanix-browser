@@ -1,100 +1,54 @@
-import 'dart:io';
-
-import 'package:flutter/foundation.dart';
-import 'package:mechanix_browser/core/utils/constants.dart';
+import 'package:drift/drift.dart';
+import 'package:mechanix_browser/core/database/app_database.dart';
+import 'package:mechanix_browser/core/services/database_service.dart';
+import 'package:mechanix_browser/core/utils/app_logger.dart';
 import 'package:mechanix_browser/features/browser/data/models/tab_entity.dart';
-import 'package:mechanix_browser/objectbox.g.dart';
 
+/// The normal (non-private) tabs, saved so they can be restored on the next
+/// start.
 class TabRepository {
-  final Store store;
-  final Box<TabEntity> _tabBox;
+  TabRepository({AppDatabase? db}) : _db = db ?? DatabaseService.db;
 
-  TabRepository._(this.store) : _tabBox = store.box<TabEntity>();
+  final AppDatabase _db;
 
-static Future<TabRepository> create({Store? store}) async {
+  /// Saved tabs in tab order; empty if they can't be read.
+  Future<List<TabEntity>> getAllTabs() async {
     try {
-      if (store != null) {
-        return TabRepository._(store);
-      }
-
-      final home = Platform.environment['HOME'];
-      if (home == null || home.isEmpty) {
-        throw Exception('HOME environment variable is not set');
-      }
-
-      final storeDir = Directory('$home/${AppConstants.dbPath}');
-      if (!await storeDir.exists()) {
-        await storeDir.create(recursive: true);
-      }
-
-      final newStore = await openStore(directory: storeDir.path);
-      return TabRepository._(newStore);
+      return await (_db.select(
+        _db.tabs,
+      )..orderBy([(t) => OrderingTerm.asc(t.tabIndex)])).get();
     } catch (e, stackTrace) {
-      debugPrint('Unable to initialize bookmark storage: $e');
-      debugPrint(stackTrace.toString());
-      rethrow;
-    }
-  }
-  void saveTab(TabEntity tab) {
-    try {
-      // Check if tab already exists by tabId
-      final query = _tabBox.query(TabEntity_.tabId.equals(tab.tabId)).build();
-      final existing = query.findFirst();
-      query.close();
-
-      if (existing != null) {
-        tab.id = existing.id;
-      }
-      _tabBox.put(tab);
-    } catch (e, stackTrace) {
-      debugPrint('Unable to save tab: $e');
-      debugPrint(stackTrace.toString());
-    }
-  }
-
-  void saveAllTabs(List<TabEntity> tabs) {
-    try {
-      _tabBox.putMany(tabs);
-    } catch (e, stackTrace) {
-      debugPrint('Unable to save tabs: $e');
-      debugPrint(stackTrace.toString());
-    }
-  }
-
-  List<TabEntity> getAllTabs() {
-    try {
-      final query = (_tabBox.query()..order(TabEntity_.tabIndex)).build();
-      final results = query.find();
-      query.close();
-      return results;
-    } catch (e, stackTrace) {
-      debugPrint('Unable to get tabs: $e');
-      debugPrint(stackTrace.toString());
+      AppLogger.e('Unable to get tabs', error: e, stack: stackTrace);
       return [];
     }
   }
 
-  void deleteTab(String tabId) {
-    try {
-      final query = _tabBox.query(TabEntity_.tabId.equals(tabId)).build();
-      final existing = query.findFirst();
-      query.close();
-
-      if (existing != null) {
-        _tabBox.remove(existing.id);
-      }
-    } catch (e, stackTrace) {
-      debugPrint('Unable to delete tab: $e');
-      debugPrint(stackTrace.toString());
+  /// Makes the saved tabs match [tabs], atomically: tabs no longer open are
+  /// deleted, the rest inserted or updated by `tabId`.
+  ///
+  /// Screenshots are left as they are (see [saveScreenshot]), so saving the
+  /// tab list doesn't rewrite every screenshot blob.
+  Future<void> saveTabs(List<TabEntity> tabs) => _db.batch((batch) {
+    batch.deleteWhere(
+      _db.tabs,
+      (t) => t.tabId.isNotIn([for (final tab in tabs) tab.tabId]),
+    );
+    for (final tab in tabs) {
+      final row = tab.toCompanion().copyWith(
+        id: const Value.absent(),
+        screenshot: const Value.absent(),
+      );
+      batch.insert(
+        _db.tabs,
+        row,
+        onConflict: DoUpdate((_) => row, target: [_db.tabs.tabId]),
+      );
     }
-  }
+  });
 
-  void deleteAllTabs() {
-    try {
-      _tabBox.removeAll();
-    } catch (e, stackTrace) {
-      debugPrint('Unable to delete all tabs: $e');
-      debugPrint(stackTrace.toString());
-    }
-  }
+  /// Stores the screenshot of the saved tab [tabId], if it is saved.
+  Future<void> saveScreenshot(String tabId, Uint8List screenshot) =>
+      (_db.update(_db.tabs)..where((t) => t.tabId.equals(tabId))).write(
+        TabsCompanion(screenshot: Value(screenshot)),
+      );
 }

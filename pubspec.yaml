@@ -41,26 +41,37 @@ dependencies:
   bloc: ^9.2.0
   equatable: ^2.0.8
   show_fps: ^1.1.0
-  objectbox: ^5.3.2
-  objectbox_flutter_libs: ^5.3.2
   webview_cef:
     git:
       url: https://github.com/mecha-org/webview_cef.git
       ref: main
   # path: ../webview_cef
+  drift: ^2.35.4
+  sqlite3: ^3.9.1
+  path: ^1.9.1
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   build_runner: any
-  objectbox_generator: ^5.3.2
-  
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
   # activated in the `analysis_options.yaml` file located at the root of your
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+  drift_dev: ^2.35.3
+  ffi: ^2.2.0
+
+# drift uses the system SQLite. The default sqlite3 hook bundles lib/libsqlite3.so,
+# but Dart then dlopen()s "libsqlite3.so" by bare name, which flutter-elinux doesn't
+# resolve against the bundle (and the unversioned name only exists where
+# libsqlite3-dev is installed). Instead the runner links libsqlite3.so.0 (see
+# elinux/runner/CMakeLists.txt) and Dart looks the symbols up in the process.
+hooks:
+  user_defines:
+    sqlite3:
+      source: process
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

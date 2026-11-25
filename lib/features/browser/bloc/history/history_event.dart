@@ -11,6 +11,11 @@ class HistoryLoadRequested extends HistoryEvent {
   const HistoryLoadRequested();
 }
 
+/// Loads the next page of the current list (e.g. when scrolled near the end).
+class HistoryLoadMoreRequested extends HistoryEvent {
+  const HistoryLoadMoreRequested();
+}
+
 class HistoryItemDeleted extends HistoryEvent {
   final BrowserHistory item;
   const HistoryItemDeleted(this.item);

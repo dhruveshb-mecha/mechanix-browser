@@ -13,10 +13,18 @@ class BrowserInitialized extends BrowserEvent {
 
 class BrowserUrlLoadRequested extends BrowserEvent {
   final String url;
-  const BrowserUrlLoadRequested(this.url);
+
+  /// How the user started this navigation, recorded in history. Input that
+  /// is turned into a search is recorded as [PageTransition.generated].
+  final PageTransition transition;
+
+  const BrowserUrlLoadRequested(
+    this.url, {
+    this.transition = PageTransition.typed,
+  });
 
   @override
-  List<Object?> get props => [url];
+  List<Object?> get props => [url, transition];
 }
 
 class BrowserGoBackRequested extends BrowserEvent {

@@ -3,7 +3,27 @@ class AppConstants {
   static const String searchUrlPrefix = 'https://www.google.com/search?q=';
   static const String defaultUserAgent = 'test/userAgent';
   static const String defaultScheme = 'https://';
-  static const String dbPath = '.config/mechanix_apps/browser/objectbox';
+
+  /// Browser data directory, relative to $HOME (Chromium's profile dir).
+  static const String profileDir = '.config/mechanix_apps/browser';
+
+  /// SQLite database (history, downloads, tabs) in [profileDir].
+  static const String databaseFileName = 'browser.sqlite';
+
+  /// Bookmarks JSON file in [profileDir].
+  static const String bookmarksFileName = 'Bookmarks';
+
+  /// History visits older than this are deleted (Chromium keeps 90 days).
+  static const Duration historyRetention = Duration(days: 90);
+
+  /// History entries loaded per page on the history screen.
+  static const int historyPageSize = 50;
+
+  /// Wait this long after typing stops before searching history.
+  static const Duration searchDebounce = Duration(milliseconds: 150);
+
+  /// Most history suggestions shown under the address bar.
+  static const int maxHistorySuggestions = 10;
   static const int maxFavoritesCount = 5;
   static const Duration bottomBarAutoHideDuration = Duration(seconds: 2);
 }

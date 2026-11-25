@@ -91,11 +91,12 @@ class _BrowserScreenState extends State<BrowserScreen> {
                   ),
                 ),
 
-              // Camera/mic/location/... prompt for the active tab, shown
-              // above the bottom bar.
-              const PermissionPromptOverlay(),
-              const DownloadNotificationOverlay(),
-            ],
+                // Camera/mic/location/... prompt for the active tab, shown
+                // above the bottom bar.
+                const PermissionPromptOverlay(),
+                const DownloadNotificationOverlay(),
+              ],
+            ),
           ),
         );
       },

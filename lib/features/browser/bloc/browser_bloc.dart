@@ -1,12 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:equatable/equatable.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mechanix_browser/core/utils/app_logger.dart';
 import 'package:mechanix_browser/core/utils/constants.dart';
-import 'package:mechanix_browser/core/utils/helpers.dart';
 import 'package:mechanix_browser/features/browser/bloc/download/browser_download.dart';
 import 'package:mechanix_browser/features/browser/bloc/download/download_bloc.dart';
 import 'package:mechanix_browser/features/browser/bloc/permission/permission_bloc.dart';
@@ -14,6 +14,7 @@ import 'package:mechanix_browser/features/browser/data/models/bookmark.dart';
 import 'package:mechanix_browser/features/browser/data/models/browser_error_info.dart';
 import 'package:mechanix_browser/features/browser/data/models/browser_history.dart';
 import 'package:mechanix_browser/features/browser/data/models/browser_tab.dart';
+import 'package:mechanix_browser/features/browser/data/models/page_transition.dart';
 import 'package:mechanix_browser/features/browser/data/models/tab_entity.dart';
 import 'package:mechanix_browser/features/browser/data/repositories/bookmark_repository.dart';
 import 'package:mechanix_browser/features/browser/data/repositories/history_repository.dart';
@@ -33,11 +34,34 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
   /// Repository managing local browser history persistency.
   HistoryRepository? _historyRepository;
 
+  /// How the next URL change in a tab was started, set when the user starts a
+  /// navigation (typed URL, bookmark, reload, back/forward). A URL change
+  /// without one is a link click or a redirect.
+  final _pendingTransitions = <String, PageTransition>{};
+
+  /// The last history visit recorded in each tab.
+  final _lastVisits = <String, _TabVisit>{};
+
+  /// A URL change this soon after the previous one in the same tab, not
+  /// started by the user, is treated as a redirect.
+  static const _redirectWindow = Duration(milliseconds: 1500);
+
+  /// Guards against slower, older search results replacing newer ones.
+  int _searchGeneration = 0;
+
   /// Repository managing local bookmarks persistency.
   BookmarkRepository? _bookmarkRepository;
 
   /// Repository managing local tabs persistency.
   TabRepository? _tabRepository;
+
+  /// The newest tab list not yet handed to [_tabRepository], and the write in
+  /// progress, if any. See [_persistTabs].
+  List<TabEntity>? _pendingTabsSnapshot;
+  Future<void>? _tabsWrite;
+
+  /// Screenshots captured but not yet saved, by tab id (newest wins).
+  final _pendingScreenshots = <String, Uint8List>{};
 
   /// Local incremental counter for unique tab ID generation.
   int _tabIdCounter = 0;
@@ -89,7 +113,13 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
   }
 
   /// Initializes a new instance of [BrowserBloc] and registers the event handlers.
-  BrowserBloc({this.downloadBloc, this.permissionBloc}) : super(BrowserState.initial()) {
+  BrowserBloc({
+    this.downloadBloc,
+    this.permissionBloc,
+    this._historyRepository,
+    this._tabRepository,
+    this._bookmarkRepository,
+  }) : super(BrowserState.initial()) {
     on<BrowserInitialized>(_onInitialized);
     on<BrowserUrlLoadRequested>(_onUrlLoadRequested);
     on<BrowserGoBackRequested>(_onGoBack);
@@ -396,18 +426,29 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     Emitter<BrowserState> emit,
   ) async {
     try {
-      _historyRepository = HistoryRepositoryImpl();
-      _bookmarkRepository = BookmarkRepository();
-      _tabRepository = await TabRepository.create(
-        store: _historyRepository!.store,
-      );
+      _historyRepository ??= HistoryRepositoryImpl();
+      _bookmarkRepository ??= BookmarkRepository();
+      _tabRepository ??= TabRepository();
 
       await WebviewManager().initialize(
         userAgent: AppConstants.defaultUserAgent,
       );
 
-      final savedTabs = _tabRepository!.getAllTabs();
+      final allSavedTabs = await _tabRepository!.getAllTabs();
+      final history = await _historyRepository!.getHistory(
+        limit: AppConstants.maxHistorySuggestions,
+      );
+
+      // No awaits from here to the emit below: a tab opened meanwhile (e.g.
+      // a URL passed on the command line) must not be lost.
       final startupTabs = List<BrowserTab>.from(state.normalTabs);
+      // Such a tab may already have been saved; restoring it as well would
+      // open it twice, with the same id.
+      final startupIds = {for (final tab in startupTabs) tab.id};
+      final savedTabs = [
+        for (final tab in allSavedTabs)
+          if (!startupIds.contains(tab.tabId)) tab,
+      ];
       final List<BrowserTab> tabs = [];
 
       int activeTabIndex = -1;
@@ -441,7 +482,6 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
 
       final favorites = _bookmarkRepository!.getFavorites();
       final bookmarks = _bookmarkRepository!.getBookmarks();
-      final history = _historyRepository!.getHistory();
 
       emit(
         state.copyWith(
@@ -458,6 +498,8 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
           isCurrentUrlBookmarked: false,
         ),
       );
+      // Expiry writes; keep it off the startup path.
+      unawaited(_expireOldHistory());
     } catch (e) {
       AppLogger.i("Webview initialization error: $e");
     }
@@ -919,7 +961,11 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     }
   }
 
-  /// Helper to persist current tabs state.
+  /// Saves the current normal tabs (without screenshots), without waiting.
+  ///
+  /// Each call snapshots the whole list, so only the newest snapshot matters:
+  /// one write runs at a time, and snapshots taken meanwhile collapse into a
+  /// single follow-up write.
   void _persistTabs() {
     if (_tabRepository == null) return;
 
@@ -933,12 +979,41 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
           url: tab.isHomePage ? '' : tab.currentUrl,
           title: tab.title,
           isActive: i == state.activeNormalTabIndex,
-          screenshot: tab.screenshot,
         ),
       );
     }
-    _tabRepository!.deleteAllTabs();
-    _tabRepository!.saveAllTabs(tabsToSave);
+    _pendingTabsSnapshot = tabsToSave;
+    _tabsWrite ??= _writePendingTabs();
+  }
+
+  /// Saves a captured screenshot for its tab only, without waiting.
+  void _persistScreenshot(String tabId, Uint8List screenshot) {
+    if (_tabRepository == null) return;
+    _pendingScreenshots[tabId] = screenshot;
+    _tabsWrite ??= _writePendingTabs();
+  }
+
+  /// Completes once the latest tab list has been saved.
+  Future<void> flushPendingWrites() async => _tabsWrite;
+
+  /// Writes pending tab lists and screenshots one at a time. The tab list
+  /// goes first, so a new tab's row exists before its screenshot is saved.
+  Future<void> _writePendingTabs() async {
+    while (_pendingTabsSnapshot != null || _pendingScreenshots.isNotEmpty) {
+      final tabs = _pendingTabsSnapshot;
+      _pendingTabsSnapshot = null;
+      final screenshots = Map.of(_pendingScreenshots);
+      _pendingScreenshots.clear();
+      try {
+        if (tabs != null) await _tabRepository!.saveTabs(tabs);
+        for (final MapEntry(key: tabId, value: png) in screenshots.entries) {
+          await _tabRepository!.saveScreenshot(tabId, png);
+        }
+      } catch (e, stackTrace) {
+        AppLogger.e('Error saving tabs', error: e, stack: stackTrace);
+      }
+    }
+    _tabsWrite = null;
   }
 
   Future<void> _captureTabScreenshot(
@@ -966,7 +1041,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
             emit(state.copyWith(privateTabs: updatedTabs));
           } else {
             emit(state.copyWith(normalTabs: updatedTabs));
-            _persistTabs();
+            _persistScreenshot(tab.id, screenshotBytes);
           }
         }
       }
@@ -992,6 +1067,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
       if (finalUrl.isEmpty) return;
 
       final isUri = Uri.tryParse(event.url.trim())?.isAbsolute;
+      var transition = event.transition;
 
       /// check uri is correct or search
       if (!isUri!) {
@@ -1000,10 +1076,12 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
         } else {
           finalUrl =
               '${AppConstants.searchUrlPrefix}${Uri.encodeComponent(finalUrl)}';
+          transition = PageTransition.generated;
         }
       }
 
       final activeTab = state.activeTab!;
+      _pendingTransitions[activeTab.id] = transition;
       final updatedTab = activeTab.copyWith(
         isHomePage: false,
         currentUrl: finalUrl,
@@ -1041,6 +1119,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     try {
       final activeTab = state.activeTab;
       if (activeTab != null && activeTab.controller.value) {
+        _pendingTransitions[activeTab.id] = PageTransition.link;
         await activeTab.controller.goBack();
       }
     } catch (e, stackTrace) {
@@ -1055,6 +1134,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     try {
       final activeTab = state.activeTab;
       if (activeTab != null && activeTab.controller.value) {
+        _pendingTransitions[activeTab.id] = PageTransition.link;
         await activeTab.controller.goForward();
       }
     } catch (e, stackTrace) {
@@ -1069,6 +1149,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     try {
       final activeTab = state.activeTab;
       if (activeTab != null && activeTab.controller.value) {
+        _pendingTransitions[activeTab.id] = PageTransition.reload;
         await activeTab.controller.reload();
       }
     } catch (e, stackTrace) {
@@ -1131,8 +1212,13 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
   }
 
   /// Handler triggered when a tab's URL changes.
-  /// Updates the tab's state and checks if the new URL is bookmarked.
-  void _onUrlChanged(BrowserUrlChanged event, Emitter<BrowserState> emit) {
+  /// Updates the tab's state, checks if the new URL is bookmarked and records
+  /// a history visit.
+  Future<void> _onUrlChanged(
+    BrowserUrlChanged event,
+    Emitter<BrowserState> emit,
+  ) async {
+    final pendingTransition = _pendingTransitions.remove(event.tabId);
     int index = state.normalTabs.indexWhere((t) => t.id == event.tabId);
     bool isPrivate = false;
     if (index == -1) {
@@ -1182,50 +1268,69 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
         );
         return;
       }
-      try {
-        final history = _historyRepository!.getHistory();
-        final now = DateTime.now().millisecondsSinceEpoch;
-        BrowserHistory? entryToSave;
+      await _recordVisit(event.tabId, event.url, pendingTransition);
+    }
+  }
 
-        if (history.isNotEmpty) {
-          final latest = history.first;
-          final elapsed = now - latest.timestamp;
-          if (elapsed < 1500) {
-            AppLogger.i(
-              'Redirect/rapid navigation detected (elapsed: ${elapsed}ms). Overwriting latest history entry from ${latest.url} to ${event.url}',
-            );
-            latest.url = event.url;
-            latest.timestamp = now;
-            entryToSave = latest;
-          }
-        }
+  /// Records a history visit to [url] in [tabId].
+  ///
+  /// [pendingTransition] is set when the user started the navigation. Without
+  /// one, a change within [_redirectWindow] of the tab's previous visit is a
+  /// redirect: it links to that visit, which then drops out of the history
+  /// list.
+  Future<void> _recordVisit(
+    String tabId,
+    String url,
+    PageTransition? pendingTransition,
+  ) async {
+    // Update the tab's bookkeeping before the first await: URL changes are
+    // handled concurrently, and a redirect must see the visit before it.
+    final now = DateTime.now();
+    final previous = _lastVisits[tabId];
+    final soon =
+        previous != null && now.difference(previous.time) < _redirectWindow;
+    if (pendingTransition == null && soon && previous.url == url) {
+      return; // The same URL reported twice.
+    }
+    final isRedirect = pendingTransition == null && soon;
+    final transition =
+        pendingTransition ??
+        (isRedirect ? PageTransition.redirect : PageTransition.link);
+    final visitId = Completer<int?>();
+    _lastVisits[tabId] = (url: url, time: now, id: visitId.future);
 
-        if (entryToSave == null) {
-          AppLogger.i(
-            'Preparing to save new history entry for URL: ${event.url}',
-          );
-          entryToSave = BrowserHistory(
-            url: event.url,
-            title: '',
-            timestamp: now,
-          );
-        }
+    try {
+      final fromVisit = isRedirect ? await previous.id : null;
+      final id = await _historyRepository!.addVisit(
+        url,
+        transition: transition,
+        fromVisit: fromVisit,
+        time: now,
+      );
+      visitId.complete(id);
+      AppLogger.i('Recorded ${transition.name} visit to $url');
+    } catch (e, stackTrace) {
+      visitId.complete(null);
+      AppLogger.e('Error saving history visit', error: e, stack: stackTrace);
+    }
+  }
 
-        AppLogger.i(
-          'Saving history entry to database: url=${entryToSave.url}, title=${entryToSave.title}',
-        );
-        _historyRepository!.saveHistory(entryToSave);
-        AppLogger.i(
-          'Successfully saved history entry: url=${entryToSave.url}, title=${entryToSave.title}',
-        );
-      } catch (e, stackTrace) {
-        AppLogger.e('Error saving history URL', error: e, stack: stackTrace);
-      }
+  /// Deletes visits older than [AppConstants.historyRetention].
+  Future<void> _expireOldHistory() async {
+    try {
+      final cutoff = DateTime.now().subtract(AppConstants.historyRetention);
+      final expired = await _historyRepository!.expireVisitsBefore(cutoff);
+      if (expired > 0) AppLogger.i('Expired $expired old history visits');
+    } catch (e, stackTrace) {
+      AppLogger.e('Error expiring history', error: e, stack: stackTrace);
     }
   }
 
   /// Handler triggered when a tab's document title changes.
-  void _onTitleChanged(BrowserTitleChanged event, Emitter<BrowserState> emit) {
+  Future<void> _onTitleChanged(
+    BrowserTitleChanged event,
+    Emitter<BrowserState> emit,
+  ) async {
     int index = state.normalTabs.indexWhere((t) => t.id == event.tabId);
     bool isPrivate = false;
     if (index == -1) {
@@ -1246,30 +1351,27 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
       emit(state.copyWith(normalTabs: updatedTabs));
     }
 
-    // Update the corresponding history entry's title only if NOT private
-    if (!isPrivate && _historyRepository != null && event.title.isNotEmpty) {
+    // Store the title on the URL this tab last visited, only if NOT private
+    final visit = _lastVisits[event.tabId];
+    if (!isPrivate &&
+        _historyRepository != null &&
+        event.title.isNotEmpty &&
+        visit != null &&
+        visit.url == updatedTab.currentUrl) {
       try {
-        final history = _historyRepository!.getHistory();
-        if (history.isNotEmpty) {
-          final latest = history.first;
-          // Normalize URLs to remove trailing slashes for precise comparison
-          final latestUrlNorm = normalizeUrl(latest.url);
-          final tabUrlNorm = normalizeUrl(updatedTab.currentUrl);
-
-          // Update the history title if the latest entry's URL matches the current tab URL
-          if (latestUrlNorm.toLowerCase() == tabUrlNorm.toLowerCase()) {
-            latest.title = event.title;
-            AppLogger.i(
-              'Preparing to update title for history entry: url=${latest.url}, new title=${latest.title}',
-            );
-            _historyRepository!.saveHistory(latest);
-            AppLogger.i(
-              'Successfully updated title for history entry: url=${latest.url}, title=${latest.title}',
-            );
-
-            final updatedHistory = _historyRepository!.getHistory();
-            emit(state.copyWith(searchResults: updatedHistory));
-          }
+        // The URL's history row exists once its visit has been stored.
+        if (await visit.id == null) return;
+        await _historyRepository!.setTitle(visit.url, event.title);
+        // The address bar reloads suggestions when it gains focus, so only
+        // refresh them here while it's in use.
+        if (_isInteracting) {
+          emit(
+            state.copyWith(
+              searchResults: await _historyRepository!.getHistory(
+                limit: AppConstants.maxHistorySuggestions,
+              ),
+            ),
+          );
         }
       } catch (e, stackTrace) {
         AppLogger.e(
@@ -1342,64 +1444,76 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     Emitter<BrowserState> emit,
   ) async {
     if (_historyRepository != null) {
-      _historyRepository!.clearHistory();
+      _searchGeneration++; // drop any search still running
+      await _historyRepository!.clearHistory();
       emit(state.copyWith(searchResults: const []));
     }
   }
 
   /// Handler triggered when the search/URL query changes.
   /// Filters the history entries matching the query and updates search results.
-  void _onSearchQueryChanged(
+  Future<void> _onSearchQueryChanged(
     BrowserSearchQueryChanged event,
     Emitter<BrowserState> emit,
-  ) {
+  ) async {
     if (_historyRepository == null) return;
-
-    if (event.query.trim().isEmpty) {
-      final allHistory = _historyRepository!.getHistory();
-      emit(state.copyWith(searchResults: allHistory));
-      return;
-    }
-
-    final results = _historyRepository!.searchHistory(event.query);
-
-    final seenUrls = <String>{};
-    final uniqueResults = <BrowserHistory>[];
-    for (final item in results) {
-      final normalizedUrl = item.url.trim().toLowerCase();
-      if (normalizedUrl.isNotEmpty && seenUrls.add(normalizedUrl)) {
-        uniqueResults.add(item);
-      }
-    }
-
-    emit(state.copyWith(searchResults: uniqueResults));
+    await _emitSearchResults(
+      event.query,
+      emit,
+      debounce: AppConstants.searchDebounce,
+    );
   }
 
   /// Handler to delete a specific history item and refresh the search result lists.
-  void _onHistoryItemDeleted(
+  Future<void> _onHistoryItemDeleted(
     BrowserHistoryItemDeleted event,
     Emitter<BrowserState> emit,
-  ) {
-    if (_historyRepository != null) {
-      _historyRepository!.historyBox.remove(event.item.id);
+  ) async {
+    if (_historyRepository == null) return;
+    try {
+      await _historyRepository!.deleteVisit(event.item.id);
+    } catch (e, stackTrace) {
+      AppLogger.e('Error deleting history item', error: e, stack: stackTrace);
+    }
+    await _emitSearchResults(event.currentQuery, emit);
+  }
 
-      if (event.currentQuery.trim().isEmpty) {
-        final allHistory = _historyRepository!.getHistory();
-        emit(state.copyWith(searchResults: allHistory));
+  /// Emits all history for a blank [query], otherwise the matching entries
+  /// with one per URL. Results of an older query are dropped if a newer one
+  /// was started meanwhile; with [debounce], the query only runs if no newer
+  /// one arrives within that time (one query per pause in typing).
+  Future<void> _emitSearchResults(
+    String query,
+    Emitter<BrowserState> emit, {
+    Duration debounce = Duration.zero,
+  }) async {
+    final generation = ++_searchGeneration;
+    if (debounce > Duration.zero) {
+      await Future<void>.delayed(debounce);
+      if (generation != _searchGeneration) return;
+    }
+    try {
+      final List<BrowserHistory> results;
+      if (query.trim().isEmpty) {
+        results = await _historyRepository!.getHistory(
+          limit: AppConstants.maxHistorySuggestions,
+        );
       } else {
-        final results = _historyRepository!.searchHistory(event.currentQuery);
-
+        // One suggestion per URL, from the newest matching visits.
         final seenUrls = <String>{};
-        final uniqueResults = <BrowserHistory>[];
-        for (final item in results) {
-          final normalizedUrl = item.url.trim().toLowerCase();
-          if (normalizedUrl.isNotEmpty && seenUrls.add(normalizedUrl)) {
-            uniqueResults.add(item);
-          }
-        }
-
-        emit(state.copyWith(searchResults: uniqueResults));
+        results = [
+          for (final item in await _historyRepository!.searchHistory(
+            query,
+            limit: AppConstants.maxHistorySuggestions * 5,
+          ))
+            if (seenUrls.add(item.url.trim().toLowerCase())) item,
+        ].take(AppConstants.maxHistorySuggestions).toList();
       }
+      if (generation == _searchGeneration) {
+        emit(state.copyWith(searchResults: results));
+      }
+    } catch (e, stackTrace) {
+      AppLogger.e('Error searching history', error: e, stack: stackTrace);
     }
   }
 
@@ -1585,8 +1699,11 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
       tab.controller.dispose();
     }
     await WebviewManager().quit();
-    _historyRepository?.close();
-    _bookmarkRepository?.close();
+    await flushPendingWrites();
     return super.close();
   }
 }
+
+/// A history visit recorded in a tab; [id] completes with the visit id once
+/// stored, or null if storing it failed.
+typedef _TabVisit = ({String url, DateTime time, Future<int?> id});

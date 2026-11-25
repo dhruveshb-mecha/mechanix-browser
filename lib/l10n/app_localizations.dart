@@ -573,6 +573,24 @@ abstract class AppLocalizations {
   /// **'Clear all'**
   String get clearAll;
 
+  /// Hint for the search field on the history screen
+  ///
+  /// In en, this message translates to:
+  /// **'Search history'**
+  String get searchHistory;
+
+  /// Hint for the search field on the bookmarks screen
+  ///
+  /// In en, this message translates to:
+  /// **'Search bookmarks'**
+  String get searchBookmarks;
+
+  /// Shown when a history or bookmarks search finds nothing
+  ///
+  /// In en, this message translates to:
+  /// **'No matches'**
+  String get noSearchResults;
+
   /// Tooltip for delete button
   ///
   /// In en, this message translates to:

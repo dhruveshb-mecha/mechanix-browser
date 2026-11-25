@@ -1,5 +1,7 @@
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:mechanix_browser/core/utils/app_logger.dart';
+import 'package:mechanix_browser/core/utils/constants.dart';
 import 'package:mechanix_browser/core/utils/history_date_grouper.dart';
 import 'package:mechanix_browser/features/browser/data/models/browser_history.dart';
 import 'package:mechanix_browser/features/browser/data/repositories/history_repository.dart';
@@ -8,11 +10,18 @@ import 'package:mechanix_browser/features/browser/data/repositories/history_repo
 part 'history_event.dart';
 part 'history_state.dart';
 
+/// The history screen: visits newest first, loaded a page at a time
+/// ([AppConstants.historyPageSize]), optionally filtered by a search query.
 class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
   HistoryRepository? repository;
 
+  /// Bumped for every new list (load, search, clear), so a slower request for
+  /// an older one can't overwrite it.
+  int _generation = 0;
+
   HistoryBloc({this.repository}) : super(HistoryState.initial()) {
     on<HistoryLoadRequested>(_onLoadRequested);
+    on<HistoryLoadMoreRequested>(_onLoadMoreRequested);
     on<HistoryItemDeleted>(_onItemDeleted);
     on<HistoryClearRequested>(_onClearRequested);
     on<HistorySearchQueryChanged>(_onSearchQueryChanged);
@@ -23,24 +32,92 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
     return repository!;
   }
 
+  /// One page of the list for [query], after [after] if given.
+  Future<List<BrowserHistory>> _page(String query, BrowserHistory? after) {
+    final repo = _ensureRepository();
+    const limit = AppConstants.historyPageSize;
+    return query.isEmpty
+        ? repo.getHistory(limit: limit, after: after)
+        : repo.searchHistory(query, limit: limit, after: after);
+  }
+
+  /// Replaces the list with the first page for [query]. With [debounce], the
+  /// query only runs if no newer one arrives within that time.
+  Future<void> _loadFirstPage(
+    String query,
+    Emitter<HistoryState> emit, {
+    Duration debounce = Duration.zero,
+  }) async {
+    final generation = ++_generation;
+    if (debounce > Duration.zero) {
+      await Future<void>.delayed(debounce);
+      if (generation != _generation) return;
+    }
+    try {
+      final items = await _page(query, null);
+      if (generation != _generation) return;
+      emit(
+        state.copyWith(
+          searchQuery: query,
+          historyItems: items,
+          groupedSections: HistoryDateGrouper.groupHistory(items),
+          hasMore: items.length == AppConstants.historyPageSize,
+          isLoading: false,
+          isLoadingMore: false,
+        ),
+      );
+    } catch (e, stackTrace) {
+      AppLogger.e('Error loading history', error: e, stack: stackTrace);
+      if (generation == _generation) {
+        emit(state.copyWith(isLoading: false, isLoadingMore: false));
+      }
+    }
+  }
+
   Future<void> _onLoadRequested(
     HistoryLoadRequested event,
     Emitter<HistoryState> emit,
   ) async {
-    emit(state.copyWith(isLoading: true));
+    // Opening the screen starts from the unfiltered list.
+    emit(state.copyWith(isLoading: true, searchQuery: ''));
+    await _loadFirstPage('', emit);
+  }
+
+  Future<void> _onSearchQueryChanged(
+    HistorySearchQueryChanged event,
+    Emitter<HistoryState> emit,
+  ) => _loadFirstPage(
+    event.query.trim(),
+    emit,
+    debounce: AppConstants.searchDebounce,
+  );
+
+  /// Appends the next page, if there is one and none is loading.
+  Future<void> _onLoadMoreRequested(
+    HistoryLoadMoreRequested event,
+    Emitter<HistoryState> emit,
+  ) async {
+    if (!state.hasMore || state.isLoadingMore || state.isEmpty) return;
+    final generation = _generation;
+    emit(state.copyWith(isLoadingMore: true));
     try {
-      final repo = _ensureRepository();
-      final items = repo.getHistory();
-      final grouped = HistoryDateGrouper.groupHistory(items);
+      final more = await _page(state.searchQuery, state.historyItems.last);
+      if (generation != _generation) return;
       emit(
         state.copyWith(
-          historyItems: items,
-          groupedSections: grouped,
-          isLoading: false,
+          historyItems: [...state.historyItems, ...more],
+          // Group only the new page; it continues the last section.
+          groupedSections: HistoryDateGrouper.appendGroups(
+            state.groupedSections,
+            HistoryDateGrouper.groupHistory(more),
+          ),
+          hasMore: more.length == AppConstants.historyPageSize,
+          isLoadingMore: false,
         ),
       );
-    } catch (_) {
-      emit(state.copyWith(isLoading: false));
+    } catch (e, stackTrace) {
+      AppLogger.e('Error loading more history', error: e, stack: stackTrace);
+      if (generation == _generation) emit(state.copyWith(isLoadingMore: false));
     }
   }
 
@@ -49,16 +126,17 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
     Emitter<HistoryState> emit,
   ) async {
     final repo = _ensureRepository();
-    repo.deleteHistory(event.item.id);
+    await repo.deleteVisit(event.item.id);
 
     final remainingItems = state.historyItems
         .where((item) => item.id != event.item.id)
         .toList();
 
-    final grouped = HistoryDateGrouper.groupHistory(remainingItems);
-
     emit(
-      state.copyWith(historyItems: remainingItems, groupedSections: grouped),
+      state.copyWith(
+        historyItems: remainingItems,
+        groupedSections: HistoryDateGrouper.groupHistory(remainingItems),
+      ),
     );
   }
 
@@ -66,37 +144,16 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
     HistoryClearRequested event,
     Emitter<HistoryState> emit,
   ) async {
+    _generation++;
     final repo = _ensureRepository();
-    repo.clearHistory();
-    emit(state.copyWith(historyItems: const [], groupedSections: const []));
-  }
-
-  Future<void> _onSearchQueryChanged(
-    HistorySearchQueryChanged event,
-    Emitter<HistoryState> emit,
-  ) async {
-    final repo = _ensureRepository();
-    final query = event.query.trim();
-    final List<BrowserHistory> results;
-    if (query.isEmpty) {
-      results = repo.getHistory();
-    } else {
-      results = repo.searchHistory(query);
-    }
-
-    final grouped = HistoryDateGrouper.groupHistory(results);
+    await repo.clearHistory();
     emit(
       state.copyWith(
-        searchQuery: query,
-        historyItems: results,
-        groupedSections: grouped,
+        historyItems: const [],
+        groupedSections: const [],
+        hasMore: false,
+        isLoadingMore: false,
       ),
     );
-  }
-
-  @override
-  Future<void> close() async {
-    repository?.close();
-    return super.close();
   }
 }

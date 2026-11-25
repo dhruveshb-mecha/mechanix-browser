@@ -349,6 +349,18 @@
   "@clearAll": {
     "description": "Button to clear all history entries"
   },
+  "searchHistory": "Search history",
+  "@searchHistory": {
+    "description": "Hint for the search field on the history screen"
+  },
+  "searchBookmarks": "Search bookmarks",
+  "@searchBookmarks": {
+    "description": "Hint for the search field on the bookmarks screen"
+  },
+  "noSearchResults": "No matches",
+  "@noSearchResults": {
+    "description": "Shown when a history or bookmarks search finds nothing"
+  },
   "delete": "Delete",
   "@delete": {
     "description": "Tooltip for delete button"

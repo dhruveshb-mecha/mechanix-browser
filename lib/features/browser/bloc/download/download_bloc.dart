@@ -18,11 +18,14 @@ class DownloadBloc extends Bloc<DownloadEvent, DownloadState> {
   final DownloadControllerManager _controllerManager =
       DownloadControllerManager();
 
-  /// Maps composite download ID -> timestamp of last ObjectBox write for I/O throttling.
+  /// Maps composite download ID -> timestamp of last database write for I/O throttling.
   final Map<int, DateTime> _lastDbSaveMap = {};
 
-  /// Tracks ObjectBox primary keys (`id`) reserved for retried/restarted downloads to avoid duplicate DB records.
+  /// Tracks database ids (`id`) reserved for retried/restarted downloads to avoid duplicate DB records.
   final Set<int> _pendingRetryRecordIds = {};
+
+  /// Tail of the queue of repository writes (see [_queueWrite]).
+  Future<void> _writes = Future.value();
 
   DownloadBloc({this.repository}) : super(DownloadState.initial()) {
     on<DownloadInitializeRequested>(_onInitialize);
@@ -84,15 +87,38 @@ class DownloadBloc extends Bloc<DownloadEvent, DownloadState> {
     );
   }
 
-  /// Persists [download] to ObjectBox and returns the entity with its assigned primary key.
-  BrowserDownload _saveDownloadToRepo(BrowserDownload download) {
+  /// Persists [download] and returns it with its database id. A new
+  /// download (id 0) gets its id here, so callers await this before the
+  /// download's progress updates can arrive.
+  Future<BrowserDownload> _saveDownloadToRepo(BrowserDownload download) async {
     if (download.isPrivate) return download;
 
     final repo = repository;
     if (repo == null) return download;
 
-    final dbId = repo.saveDownload(download.toEntity());
-    return download.id != dbId ? download.copyWith(id: dbId) : download;
+    final dbId = await _queueWrite(
+      () => repo.saveDownload(download.toEntity()),
+    );
+    return dbId != 0 && download.id != dbId
+        ? download.copyWith(id: dbId)
+        : download;
+  }
+
+  /// Saves an already stored download without waiting, e.g. on progress
+  /// ticks. Writes are queued, so they reach the database in order.
+  void _saveInBackground(BrowserDownload download) {
+    if (download.id <= 0) return;
+    unawaited(_saveDownloadToRepo(download));
+  }
+
+  /// Completes once every database write requested so far has finished.
+  Future<void> flushPendingWrites() => _writes;
+
+  /// Runs repository writes one at a time, in the order they were requested.
+  Future<T> _queueWrite<T>(Future<T> Function() write) {
+    final result = _writes.then((_) => write());
+    _writes = result.then<void>((_) {}, onError: (Object _) {});
+    return result;
   }
 
   /// Updates or inserts a download item in BLoC state list and emits the updated state.
@@ -137,7 +163,7 @@ class DownloadBloc extends Bloc<DownloadEvent, DownloadState> {
     if (repo == null) return;
 
     try {
-      final entities = repo.getAllDownloads();
+      final entities = await repo.getAllDownloads();
       final loadedDownloads = <BrowserDownload>[];
 
       for (final entity in entities) {
@@ -146,7 +172,7 @@ class DownloadBloc extends Bloc<DownloadEvent, DownloadState> {
             entity.statusIndex == DownloadStatus.paused.index) {
           entity.statusIndex = DownloadStatus.interrupted.index;
           entity.errorMessage = 'Interrupted';
-          repo.saveDownload(entity);
+          await _queueWrite(() => repo.saveDownload(entity));
         }
         loadedDownloads.add(BrowserDownload.fromEntity(entity));
       }
@@ -242,7 +268,7 @@ class DownloadBloc extends Bloc<DownloadEvent, DownloadState> {
         isPrivate: event.isPrivate,
       );
 
-      newDownload = _saveDownloadToRepo(newDownload);
+      newDownload = await _saveDownloadToRepo(newDownload);
       _updateStateWithDownload(emit, newDownload, existingIndex: existingIndex);
 
       AppLogger.i(
@@ -347,7 +373,7 @@ class DownloadBloc extends Bloc<DownloadEvent, DownloadState> {
     if (isTerminal ||
         lastSave == null ||
         now.difference(lastSave).inMilliseconds >= 1000) {
-      updatedDownload = _saveDownloadToRepo(updatedDownload);
+      _saveInBackground(updatedDownload);
       _lastDbSaveMap[compositeId] = now;
     }
 
@@ -388,9 +414,7 @@ class DownloadBloc extends Bloc<DownloadEvent, DownloadState> {
         endTime: DateTime.now(),
       );
 
-      if (updated.id > 0) {
-        updated = _saveDownloadToRepo(updated);
-      }
+      _saveInBackground(updated);
 
       _updateStateWithDownload(emit, updated, existingIndex: index);
 
@@ -428,9 +452,7 @@ class DownloadBloc extends Bloc<DownloadEvent, DownloadState> {
       }
 
       var updated = item.copyWith(status: DownloadStatus.paused);
-      if (updated.id > 0) {
-        updated = _saveDownloadToRepo(updated);
-      }
+      _saveInBackground(updated);
 
       _updateStateWithDownload(emit, updated, existingIndex: index);
     } catch (e, stackTrace) {
@@ -463,9 +485,7 @@ class DownloadBloc extends Bloc<DownloadEvent, DownloadState> {
           controller.value) {
         await controller.resumeDownload(rawCefId);
         var updated = download.copyWith(status: DownloadStatus.downloading);
-        if (updated.id > 0) {
-          updated = _saveDownloadToRepo(updated);
-        }
+        _saveInBackground(updated);
         _updateStateWithDownload(emit, updated, existingIndex: index);
       } else if (controller != null && controller.value) {
         // Fallback: If live CEF stream was lost, reload source URL to re-trigger download
@@ -484,7 +504,7 @@ class DownloadBloc extends Bloc<DownloadEvent, DownloadState> {
     }
   }
 
-  /// Removes a download record from state/ObjectBox, optionally deleting physical target and `.crdownload` files from disk.
+  /// Removes a download record from state and the database, optionally deleting physical target and `.crdownload` files from disk.
   Future<void> _onRemoveRequested(
     DownloadRemoveRequested event,
     Emitter<DownloadState> emit,
@@ -509,10 +529,10 @@ class DownloadBloc extends Bloc<DownloadEvent, DownloadState> {
           }
         }
 
-        // Delete persistent record from ObjectBox database repository
+        // Delete the persistent record from the database
         final repo = repository;
         if (repo != null && targetRecordId > 0) {
-          repo.deleteDownload(targetRecordId);
+          await _queueWrite(() => repo.deleteDownload(targetRecordId));
         }
 
         final controller = _controllerManager.getController(item.downloadId);
@@ -541,7 +561,7 @@ class DownloadBloc extends Bloc<DownloadEvent, DownloadState> {
       } else {
         final repo = repository;
         if (repo != null && event.downloadId > 0) {
-          repo.deleteDownload(event.downloadId);
+          await _queueWrite(() => repo.deleteDownload(event.downloadId));
         }
       }
 
@@ -631,7 +651,7 @@ class DownloadBloc extends Bloc<DownloadEvent, DownloadState> {
           final entity = event.download.toEntity();
           entity.downloadedBytes = 0;
           entity.statusIndex = DownloadStatus.pending.index;
-          repo.saveDownload(entity);
+          await _queueWrite(() => repo.saveDownload(entity));
         }
       }
 
@@ -684,7 +704,7 @@ class DownloadBloc extends Bloc<DownloadEvent, DownloadState> {
           }
         }
         if (repo != null && item.id > 0) {
-          repo.deleteDownload(item.id);
+          await _queueWrite(() => repo.deleteDownload(item.id));
         }
         _controllerManager.removeSession(item.downloadId);
         _lastDbSaveMap.remove(item.downloadId);
@@ -739,11 +759,12 @@ class DownloadBloc extends Bloc<DownloadEvent, DownloadState> {
             if (d.destinationPath.isNotEmpty) {
               await DownloadService.deleteFileFromDisk(d.destinationPath);
             }
-            repo.saveDownload(entity);
+            await _queueWrite(() => repo.saveDownload(entity));
           }
         }
       }
 
+      await flushPendingWrites(); // let queued progress saves finish
       _controllerManager.close();
       _lastDbSaveMap.clear();
       _pendingRetryRecordIds.clear();
