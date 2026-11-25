@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mechanix_browser/features/browser/bloc/browser_bloc.dart';
 import 'package:mechanix_browser/l10n/app_localizations.dart';
+import 'package:mechanix_browser/features/browser/data/models/page_transition.dart';
 
 class BrowserErrorPageBody extends StatelessWidget {
   final String url;
@@ -78,7 +79,12 @@ class BrowserErrorPageBody extends StatelessWidget {
             // Premium Reload Button
             ElevatedButton(
               onPressed: () {
-                context.read<BrowserBloc>().add(BrowserUrlLoadRequested(url));
+                context.read<BrowserBloc>().add(
+                  BrowserUrlLoadRequested(
+                    url,
+                    transition: PageTransition.reload,
+                  ),
+                );
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF2C2C2E),

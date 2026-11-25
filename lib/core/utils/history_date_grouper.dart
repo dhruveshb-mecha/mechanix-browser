@@ -10,6 +10,24 @@ class HistoryGroup {
 }
 
 class HistoryDateGrouper {
+  /// [existing] followed by [next], the grouped entries that come right
+  /// after it (e.g. the next page). Both are newest first, so when [next]
+  /// starts with the section [existing] ends with, the two are merged.
+  static List<HistoryGroup> appendGroups(
+    List<HistoryGroup> existing,
+    List<HistoryGroup> next,
+  ) {
+    if (existing.isEmpty || next.isEmpty) return [...existing, ...next];
+    final last = existing.last;
+    final first = next.first;
+    if (last.title != first.title) return [...existing, ...next];
+    return [
+      ...existing.take(existing.length - 1),
+      HistoryGroup(title: last.title, items: [...last.items, ...first.items]),
+      ...next.skip(1),
+    ];
+  }
+
   /// Groups [entries] into date-based sections.
   /// An optional [now] parameter can be provided for deterministic testing.
   static List<HistoryGroup> groupHistory(

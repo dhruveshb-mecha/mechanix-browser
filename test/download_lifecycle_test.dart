@@ -1,12 +1,13 @@
 import 'dart:io';
 
+import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mechanix_browser/core/database/app_database.dart';
 import 'package:mechanix_browser/features/browser/bloc/download/browser_download.dart';
 import 'package:mechanix_browser/features/browser/bloc/download/download_bloc.dart';
 import 'package:mechanix_browser/features/browser/data/models/download_entity.dart';
 import 'package:mechanix_browser/features/browser/data/repositories/download_repository.dart';
 import 'package:mechanix_browser/features/browser/data/repositories/download_repository_impl.dart';
-import 'package:mechanix_browser/objectbox.g.dart';
 import 'package:webview_cef/webview_cef.dart';
 
 class MockWebViewController extends Fake implements WebViewController {
@@ -36,37 +37,24 @@ class MockWebViewController extends Fake implements WebViewController {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  group('Download History & ObjectBox Lifecycle Tests', () {
+  group('Download History & Database Lifecycle Tests', () {
+    late AppDatabase db;
     late DownloadRepositoryImpl repository;
     late MockWebViewController mockController;
     late Directory tempDir;
 
-    late Directory testDbDir;
-    late Store testStore;
-
-    setUpAll(() async {
-      testDbDir = Directory.systemTemp.createTempSync('objectbox_test_db_');
-      testStore = Store(getObjectBoxModel(), directory: testDbDir.path);
-      repository = DownloadRepositoryImpl(store: testStore);
+    setUpAll(() {
       mockController = MockWebViewController();
     });
 
-    tearDownAll(() {
-      repository.close();
-      testStore.close();
-      if (testDbDir.existsSync()) {
-        try {
-          testDbDir.deleteSync(recursive: true);
-        } catch (_) {}
-      }
-    });
-
     setUp(() {
-      repository.clearHistory();
+      db = AppDatabase(NativeDatabase.memory());
+      repository = DownloadRepositoryImpl(db: db);
       tempDir = Directory.systemTemp.createTempSync('download_test_');
     });
 
-    tearDown(() {
+    tearDown(() async {
+      await db.close();
       if (tempDir.existsSync()) {
         try {
           tempDir.deleteSync(recursive: true);
@@ -75,7 +63,7 @@ void main() {
     });
 
     test(
-      'Test 1: Download -> complete -> Remove from history -> ObjectBox record removed -> physical file remains',
+      'Test 1: Download -> complete -> Remove from history -> database record removed -> physical file remains',
       () async {
         final bloc = DownloadBloc(repository: repository);
         final filePath = '${tempDir.path}/test_file_1.zip';
@@ -115,7 +103,7 @@ void main() {
         );
         await Future.delayed(const Duration(milliseconds: 50));
 
-        final initialRecords = repository.getAllDownloads();
+        final initialRecords = (await repository.getAllDownloads());
         expect(initialRecords.length, 1);
         final recordId = initialRecords.first.id;
 
@@ -123,7 +111,7 @@ void main() {
         bloc.add(DownloadRemoveRequested(recordId, deleteFile: false));
         await Future.delayed(const Duration(milliseconds: 50));
 
-        expect(repository.getAllDownloads().isEmpty, isTrue);
+        expect((await repository.getAllDownloads()).isEmpty, isTrue);
         expect(
           file.existsSync(),
           isTrue,
@@ -135,7 +123,7 @@ void main() {
     );
 
     test(
-      'Test 2: Download -> complete -> Delete download & remove history -> file removed -> ObjectBox record removed',
+      'Test 2: Download -> complete -> Delete download & remove history -> file removed -> database record removed',
       () async {
         final bloc = DownloadBloc(repository: repository);
         final filePath = '${tempDir.path}/test_file_2.zip';
@@ -175,7 +163,7 @@ void main() {
         );
         await Future.delayed(const Duration(milliseconds: 50));
 
-        final initialRecords = repository.getAllDownloads();
+        final initialRecords = (await repository.getAllDownloads());
         expect(initialRecords.length, 1);
         final recordId = initialRecords.first.id;
 
@@ -183,7 +171,7 @@ void main() {
         bloc.add(DownloadRemoveRequested(recordId, deleteFile: true));
         await Future.delayed(const Duration(milliseconds: 50));
 
-        expect(repository.getAllDownloads().isEmpty, isTrue);
+        expect((await repository.getAllDownloads()).isEmpty, isTrue);
         expect(
           file.existsSync(),
           isFalse,
@@ -195,7 +183,7 @@ void main() {
     );
 
     test(
-      'Test 3: Download -> fail -> Retry -> same ObjectBox ID -> only one record exists',
+      'Test 3: Download -> fail -> Retry -> same database ID -> only one record exists',
       () async {
         final bloc = DownloadBloc(repository: repository);
 
@@ -213,7 +201,7 @@ void main() {
         );
         await Future.delayed(const Duration(milliseconds: 50));
 
-        final initialRecords = repository.getAllDownloads();
+        final initialRecords = (await repository.getAllDownloads());
         expect(initialRecords.length, 1);
         final originalId = initialRecords.first.id;
 
@@ -260,16 +248,16 @@ void main() {
         );
         await Future.delayed(const Duration(milliseconds: 50));
 
-        final currentRecords = repository.getAllDownloads();
+        final currentRecords = (await repository.getAllDownloads());
         expect(
           currentRecords.length,
           1,
-          reason: 'Exactly ONE ObjectBox record must exist after retry',
+          reason: 'Exactly ONE database record must exist after retry',
         );
         expect(
           currentRecords.first.id,
           originalId,
-          reason: 'Must reuse original ObjectBox primary key',
+          reason: 'Must reuse original database id',
         );
 
         await bloc.close();
@@ -277,7 +265,7 @@ void main() {
     );
 
     test(
-      'Test 4: Download -> fail -> Retry -> fail -> Retry -> complete -> exactly ONE ObjectBox record',
+      'Test 4: Download -> fail -> Retry -> fail -> Retry -> complete -> exactly ONE database record',
       () async {
         final bloc = DownloadBloc(repository: repository);
         final url = 'https://example.com/file4.zip';
@@ -296,7 +284,7 @@ void main() {
         );
         await Future.delayed(const Duration(milliseconds: 50));
 
-        final originalId = repository.getAllDownloads().first.id;
+        final originalId = (await repository.getAllDownloads()).first.id;
 
         // 2. Fail 1
         bloc.add(
@@ -398,12 +386,12 @@ void main() {
         );
         await Future.delayed(const Duration(milliseconds: 50));
 
-        final allRecords = repository.getAllDownloads();
+        final allRecords = (await repository.getAllDownloads());
         expect(
           allRecords.length,
           1,
           reason:
-              'Must have exactly ONE ObjectBox record across full retry cycle',
+              'Must have exactly ONE database record across full retry cycle',
         );
         expect(allRecords.first.id, originalId);
         expect(allRecords.first.statusIndex, DownloadStatus.completed.index);
@@ -413,7 +401,7 @@ void main() {
     );
 
     test(
-      'Test 5: Download -> interrupted -> Resume -> same ObjectBox ID',
+      'Test 5: Download -> interrupted -> Resume -> same database ID',
       () async {
         final bloc = DownloadBloc(repository: repository);
         final url = 'https://example.com/file5.zip';
@@ -432,7 +420,7 @@ void main() {
         );
         await Future.delayed(const Duration(milliseconds: 50));
 
-        final originalId = repository.getAllDownloads().first.id;
+        final originalId = (await repository.getAllDownloads()).first.id;
 
         // 2. Interrupt
         bloc.add(
@@ -473,12 +461,12 @@ void main() {
         );
         await Future.delayed(const Duration(milliseconds: 50));
 
-        final allRecords = repository.getAllDownloads();
+        final allRecords = (await repository.getAllDownloads());
         expect(allRecords.length, 1);
         expect(
           allRecords.first.id,
           originalId,
-          reason: 'Resume must reuse same ObjectBox ID',
+          reason: 'Resume must reuse same database ID',
         );
 
         await bloc.close();
@@ -489,7 +477,7 @@ void main() {
       'Test 6: Download -> browser killed -> browser reopened -> existing downloading record becomes interrupted using SAME ID',
       () async {
         // Save an entity that was downloading when browser closed
-        final entity = repository.downloadBox.put(
+        final entity = await repository.saveDownload(
           BrowserDownload(
             downloadId: 40,
             url: 'https://example.com/file6.zip',
@@ -509,12 +497,12 @@ void main() {
         bloc.add(const DownloadInitializeRequested());
         await Future.delayed(const Duration(milliseconds: 50));
 
-        final allRecords = repository.getAllDownloads();
+        final allRecords = (await repository.getAllDownloads());
         expect(allRecords.length, 1);
         expect(
           allRecords.first.id,
           originalId,
-          reason: 'Must preserve same ObjectBox ID upon browser restart',
+          reason: 'Must preserve same database ID upon browser restart',
         );
         expect(allRecords.first.statusIndex, DownloadStatus.interrupted.index);
 
@@ -575,7 +563,7 @@ void main() {
         );
         await Future.delayed(const Duration(milliseconds: 50));
 
-        final allRecords = repository.getAllDownloads();
+        final allRecords = (await repository.getAllDownloads());
         expect(
           allRecords.length,
           2,
@@ -589,7 +577,7 @@ void main() {
     );
 
     test(
-      'Test 8: File is manually deleted outside browser -> user removes history -> ObjectBox record should still be removed successfully',
+      'Test 8: File is manually deleted outside browser -> user removes history -> database record should still be removed successfully',
       () async {
         final bloc = DownloadBloc(repository: repository);
         final filePath = '${tempDir.path}/file8.zip';
@@ -627,7 +615,7 @@ void main() {
         );
         await Future.delayed(const Duration(milliseconds: 50));
 
-        final initialRecords = repository.getAllDownloads();
+        final initialRecords = (await repository.getAllDownloads());
         expect(initialRecords.length, 1);
         final recordId = initialRecords.first.id;
 
@@ -642,10 +630,10 @@ void main() {
         await Future.delayed(const Duration(milliseconds: 50));
 
         expect(
-          repository.getAllDownloads().isEmpty,
+          (await repository.getAllDownloads()).isEmpty,
           isTrue,
           reason:
-              'ObjectBox history record must be removed even if physical file was missing',
+              'database history record must be removed even if physical file was missing',
         );
 
         await bloc.close();
@@ -674,7 +662,7 @@ void main() {
 
 class FailingDownloadRepository extends Fake implements DownloadRepository {
   @override
-  List<DownloadEntity> getAllDownloads() {
+  Future<List<DownloadEntity>> getAllDownloads() async {
     throw Exception('Database corrupt or unreadable');
   }
 }

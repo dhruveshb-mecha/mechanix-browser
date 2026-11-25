@@ -6,11 +6,17 @@ class HistoryState extends Equatable {
   final String searchQuery;
   final bool isLoading;
 
+  /// Whether more entries exist beyond those loaded.
+  final bool hasMore;
+  final bool isLoadingMore;
+
   const HistoryState({
     required this.historyItems,
     required this.groupedSections,
     required this.searchQuery,
     required this.isLoading,
+    this.hasMore = false,
+    this.isLoadingMore = false,
   });
 
   factory HistoryState.initial() {
@@ -29,12 +35,16 @@ class HistoryState extends Equatable {
     List<HistoryGroup>? groupedSections,
     String? searchQuery,
     bool? isLoading,
+    bool? hasMore,
+    bool? isLoadingMore,
   }) {
     return HistoryState(
       historyItems: historyItems ?? this.historyItems,
       groupedSections: groupedSections ?? this.groupedSections,
       searchQuery: searchQuery ?? this.searchQuery,
       isLoading: isLoading ?? this.isLoading,
+      hasMore: hasMore ?? this.hasMore,
+      isLoadingMore: isLoadingMore ?? this.isLoadingMore,
     );
   }
 
@@ -44,5 +54,7 @@ class HistoryState extends Equatable {
     groupedSections,
     searchQuery,
     isLoading,
+    hasMore,
+    isLoadingMore,
   ];
 }

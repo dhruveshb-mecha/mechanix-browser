@@ -1,24 +1,25 @@
 import 'package:mechanix_browser/features/browser/data/models/download_entity.dart';
-import 'package:mechanix_browser/objectbox.g.dart';
 
+/// Download history. Methods log failures and return a neutral value
+/// (empty list, null, 0, false) instead of throwing, except
+/// [getAllDownloads], whose failure the caller reports.
 abstract class DownloadRepository {
-  Store get store;
+  /// All downloads, newest first.
+  Future<List<DownloadEntity>> getAllDownloads();
 
-  Box<DownloadEntity> get downloadBox;
+  Future<DownloadEntity?> getDownloadById(int id);
 
-  List<DownloadEntity> getAllDownloads();
+  Future<DownloadEntity?> getDownloadByCefId(int cefDownloadId);
 
-  DownloadEntity? getDownloadById(int id);
+  /// Inserts [entity] if its id is 0, otherwise updates it. Sets and returns
+  /// the entity's id; returns 0 if saving failed.
+  Future<int> saveDownload(DownloadEntity entity);
 
-  DownloadEntity? getDownloadByCefId(int cefDownloadId);
+  /// Saves all [entities] in one transaction and returns their ids.
+  Future<List<int>> saveAllDownloads(List<DownloadEntity> entities);
 
-  int saveDownload(DownloadEntity entity);
+  /// Returns whether a record with [id] existed.
+  Future<bool> deleteDownload(int id);
 
-  List<int> saveAllDownloads(List<DownloadEntity> entities);
-
-  bool deleteDownload(int id);
-
-  void clearHistory();
-
-  void close();
+  Future<void> clearHistory();
 }

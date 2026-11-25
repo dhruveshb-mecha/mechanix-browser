@@ -1,17 +1,19 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:equatable/equatable.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mechanix_browser/core/utils/app_logger.dart';
 import 'package:mechanix_browser/core/utils/constants.dart';
-import 'package:mechanix_browser/core/utils/helpers.dart';
 import 'package:mechanix_browser/features/browser/bloc/download/browser_download.dart';
 import 'package:mechanix_browser/features/browser/bloc/download/download_bloc.dart';
+import 'package:mechanix_browser/features/browser/bloc/permission/permission_bloc.dart';
 import 'package:mechanix_browser/features/browser/data/models/bookmark.dart';
 import 'package:mechanix_browser/features/browser/data/models/browser_error_info.dart';
 import 'package:mechanix_browser/features/browser/data/models/browser_history.dart';
 import 'package:mechanix_browser/features/browser/data/models/browser_tab.dart';
+import 'package:mechanix_browser/features/browser/data/models/page_transition.dart';
 import 'package:mechanix_browser/features/browser/data/models/tab_entity.dart';
 import 'package:mechanix_browser/features/browser/data/repositories/bookmark_repository.dart';
 import 'package:mechanix_browser/features/browser/data/repositories/history_repository.dart';
@@ -25,8 +27,26 @@ part 'browser_state.dart';
 class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
   final DownloadBloc? downloadBloc;
 
+  /// Receives camera/mic/location/... requests from every tab's webview.
+  final PermissionBloc? permissionBloc;
+
   /// Repository managing local browser history persistency.
   HistoryRepository? _historyRepository;
+
+  /// How the next URL change in a tab was started, set when the user starts a
+  /// navigation (typed URL, bookmark, reload, back/forward). A URL change
+  /// without one is a link click or a redirect.
+  final _pendingTransitions = <String, PageTransition>{};
+
+  /// The last history visit recorded in each tab.
+  final _lastVisits = <String, _TabVisit>{};
+
+  /// A URL change this soon after the previous one in the same tab, not
+  /// started by the user, is treated as a redirect.
+  static const _redirectWindow = Duration(milliseconds: 1500);
+
+  /// Guards against slower, older search results replacing newer ones.
+  int _searchGeneration = 0;
 
   /// Repository managing local bookmarks persistency.
   BookmarkRepository? _bookmarkRepository;
@@ -34,11 +54,37 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
   /// Repository managing local tabs persistency.
   TabRepository? _tabRepository;
 
+  /// The newest tab list not yet handed to [_tabRepository], and the write in
+  /// progress, if any. See [_persistTabs].
+  List<TabEntity>? _pendingTabsSnapshot;
+  Future<void>? _tabsWrite;
+
+
   /// Local incremental counter for unique tab ID generation.
   int _tabIdCounter = 0;
 
   Timer? _hideTimer;
   bool _isInteracting = false;
+
+  /// Tabs whose page currently allows pull-to-refresh, as reported by the
+  /// page script for the touch in progress. Read at gesture time, so it is a
+  /// plain set rather than state (no rebuilds on every touch).
+  final Set<String> _pullToRefreshTabs = {};
+
+  /// Whether a downward pull on [tabId]'s page may refresh it.
+  bool canPullToRefresh(String tabId) => _pullToRefreshTabs.contains(tabId);
+
+  /// webview_cef's JS channels deliver the page's value JSON-encoded, so
+  /// `ScrollChannel('atTop')` arrives as `"atTop"`. Returns the plain string.
+  static String _channelMessage(String raw) {
+    try {
+      final value = jsonDecode(raw);
+      if (value is String) return value;
+    } on FormatException {
+      // Not JSON: use it as is.
+    }
+    return raw;
+  }
 
   static const Duration bottomBarAutoHideDuration =
       AppConstants.bottomBarAutoHideDuration;
@@ -64,7 +110,13 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
   }
 
   /// Initializes a new instance of [BrowserBloc] and registers the event handlers.
-  BrowserBloc({this.downloadBloc}) : super(BrowserState.initial()) {
+  BrowserBloc({
+    this.downloadBloc,
+    this.permissionBloc,
+    this._historyRepository,
+    this._tabRepository,
+    this._bookmarkRepository,
+  }) : super(BrowserState.initial()) {
     on<BrowserInitialized>(_onInitialized);
     on<BrowserUrlLoadRequested>(_onUrlLoadRequested);
     on<BrowserGoBackRequested>(_onGoBack);
@@ -155,35 +207,62 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     WebViewController controller, {
     bool isPrivate = false,
   }) {
+    // Defined once per tab, registered on URL change and again at load end
+    // (see onLoadEnd).
+    final Set<JavascriptChannel> jsChannels = {
+      JavascriptChannel(
+        name: 'Print',
+        onMessageReceived: (JavascriptMessage message) {
+          AppLogger.i(message.message);
+          controller.sendJavaScriptChannelCallBack(
+            false,
+            "{'code':'200','message':'print succeed!'}",
+            message.callbackId,
+            message.frameId,
+          );
+        },
+      ),
+      JavascriptChannel(
+        name: 'ScrollChannel',
+        onMessageReceived: (JavascriptMessage message) {
+          final msg = _channelMessage(message.message);
+          switch (msg) {
+            case 'atTop':
+              add(const BrowserBottomBarVisibilityChanged(true));
+            case 'pull:on':
+              _pullToRefreshTabs.add(tabId);
+            case 'pull:off':
+              _pullToRefreshTabs.remove(tabId);
+          }
+        },
+      ),
+    };
+
     return WebviewEventsListener(
+      onPermissionRequest: (c, request) {
+        permissionBloc?.add(
+          PermissionRequested(
+            tabId: tabId,
+            controller: c,
+            request: request,
+            isPrivate: isPrivate,
+          ),
+        );
+      },
+      onPermissionDismissed: (c, requestId, isMedia) {
+        permissionBloc?.add(
+          PermissionDismissed(
+            controller: c,
+            requestId: requestId,
+            isMedia: isMedia,
+          ),
+        );
+      },
       onTitleChanged: (t) {
         add(BrowserTitleChanged(tabId: tabId, title: t));
       },
       onUrlChanged: (url) {
         add(BrowserUrlChanged(tabId: tabId, url: url));
-
-        final Set<JavascriptChannel> jsChannels = {
-          JavascriptChannel(
-            name: 'Print',
-            onMessageReceived: (JavascriptMessage message) {
-              AppLogger.i(message.message);
-              controller.sendJavaScriptChannelCallBack(
-                false,
-                "{'code':'200','message':'print succeed!'}",
-                message.callbackId,
-                message.frameId,
-              );
-            },
-          ),
-          JavascriptChannel(
-            name: 'ScrollChannel',
-            onMessageReceived: (JavascriptMessage message) {
-              if (message.message == 'atTop') {
-                add(const BrowserBottomBarVisibilityChanged(true));
-              }
-            },
-          ),
-        };
         controller.setJavaScriptChannels(jsChannels);
         controller.executeJavaScript("function abc(e){return 'abc:'+ e}");
         controller
@@ -192,6 +271,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
       },
       onLoadStart: (c, url) {
         AppLogger.i("onLoadStart => $url");
+        _pullToRefreshTabs.remove(tabId);
         add(BrowserLoadStarted(tabId: tabId));
       },
       onLoadError: (c, errorCode, errorText, failedUrl, isMainFrame) {
@@ -208,25 +288,70 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
       onLoadEnd: (c, url) {
         add(BrowserLoadEnded(tabId: tabId));
 
+        // Registering the channels on URL change can run before the new
+        // page's JS context exists, leaving ScrollChannel undefined. Register
+        // again now; CEF runs this before the script below.
+        c.setJavaScriptChannels(jsChannels);
         c.executeJavaScript('''
           (function() {
+            // onLoadEnd fires per frame load; add the listeners only once.
+            if (window.__mxScrollScript) return;
+            window.__mxScrollScript = true;
+            // Never let a missing channel abort the script.
+            function post(m) {
+              if (typeof ScrollChannel === 'function') ScrollChannel(m);
+            }
+
             let lastScrollY = window.scrollY;
             let atTop = lastScrollY === 0;
 
             if (atTop) {
-              ScrollChannel('atTop');
+              post('atTop');
             }
 
             window.addEventListener('scroll', () => {
               const currentScrollY = window.scrollY;
               if (currentScrollY === 0 && !atTop) {
                 atTop = true;
-                ScrollChannel('atTop');
+                post('atTop');
               } else if (currentScrollY > 0 && atTop) {
                 atTop = false;
-                ScrollChannel('leftTop');
+                post('leftTop');
               }
-            });
+            }, {passive: true});
+
+            // Pull-to-refresh: decide once per touch whether a downward pull
+            // may refresh, and tell the browser only when that changes.
+            let canPull = false;
+            function setPull(value) {
+              if (value === canPull) return;
+              canPull = value;
+              post(value ? 'pull:on' : 'pull:off');
+            }
+            function blocksPull(el) {
+              const root = document.scrollingElement || document.documentElement;
+              if (root.scrollTop > 0) return true;
+              const rootStyle = getComputedStyle(root).overscrollBehaviorY;
+              if (rootStyle === 'none' || rootStyle === 'contain') return true;
+              for (; el && el !== root && el.nodeType === 1; el = el.parentElement) {
+                if (el.tagName === 'IFRAME') return true;
+                // Only scrolled elements matter, so check scrollTop before
+                // the (costlier) computed style.
+                if (el.scrollTop > 0) {
+                  const oy = getComputedStyle(el).overflowY;
+                  if (oy === 'auto' || oy === 'scroll') return true;
+                }
+              }
+              return false;
+            }
+            window.addEventListener('touchstart', (e) => {
+              setPull(e.touches.length === 1 && !blocksPull(e.target));
+            }, {passive: true});
+            // A page that handles the drag itself (maps, its own
+            // pull-to-refresh) cancels it: no refresh then.
+            window.addEventListener('touchmove', (e) => {
+              if (canPull && e.defaultPrevented) setPull(false);
+            }, {passive: true});
           })();
         ''');
       },
@@ -298,18 +423,29 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     Emitter<BrowserState> emit,
   ) async {
     try {
-      _historyRepository = HistoryRepositoryImpl();
-      _bookmarkRepository = BookmarkRepository();
-      _tabRepository = await TabRepository.create(
-        store: _historyRepository!.store,
-      );
+      _historyRepository ??= HistoryRepositoryImpl();
+      _bookmarkRepository ??= BookmarkRepository();
+      _tabRepository ??= TabRepository();
 
       await WebviewManager().initialize(
         userAgent: AppConstants.defaultUserAgent,
       );
 
-      final savedTabs = _tabRepository!.getAllTabs();
+      final allSavedTabs = await _tabRepository!.getAllTabs();
+      final history = await _historyRepository!.getHistory(
+        limit: AppConstants.maxHistorySuggestions,
+      );
+
+      // No awaits from here to the emit below: a tab opened meanwhile (e.g.
+      // a URL passed on the command line) must not be lost.
       final startupTabs = List<BrowserTab>.from(state.normalTabs);
+      // Such a tab may already have been saved; restoring it as well would
+      // open it twice, with the same id.
+      final startupIds = {for (final tab in startupTabs) tab.id};
+      final savedTabs = [
+        for (final tab in allSavedTabs)
+          if (!startupIds.contains(tab.tabId)) tab,
+      ];
       final List<BrowserTab> tabs = [];
 
       int activeTabIndex = -1;
@@ -323,7 +459,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
             tabEntity.url.isEmpty ? AppConstants.homepageUrl : tabEntity.url,
             id: tabEntity.tabId,
             load: tabEntity.isActive,
-          ).copyWith(screenshot: tabEntity.screenshot);
+          );
 
           tabs.add(tab);
           if (tabEntity.isActive) {
@@ -343,7 +479,6 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
 
       final favorites = _bookmarkRepository!.getFavorites();
       final bookmarks = _bookmarkRepository!.getBookmarks();
-      final history = _historyRepository!.getHistory();
 
       emit(
         state.copyWith(
@@ -360,6 +495,8 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
           isCurrentUrlBookmarked: false,
         ),
       );
+      // Expiry writes; keep it off the startup path.
+      unawaited(_expireOldHistory());
     } catch (e) {
       AppLogger.i("Webview initialization error: $e");
     }
@@ -492,7 +629,6 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
       }
       final oldTab = state.activeTab;
       if (oldTab != null) {
-        await _captureTabScreenshot(oldTab, emit);
         if (oldTab.controller.value) {
           await oldTab.controller.setClientFocus(false);
           await oldTab.controller.wasHidden(true);
@@ -571,6 +707,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
       final index = tabsList.indexWhere((t) => t.id == tabId);
       if (index == -1) return;
       final tabToClose = tabsList[index];
+      _pullToRefreshTabs.remove(tabId);
 
       /// If only one tab remains in that list
       if (tabsList.length == 1) {
@@ -692,7 +829,6 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
       if (state.mode == targetMode && activeIndex == index) return;
 
       if (oldTab != null) {
-        await _captureTabScreenshot(oldTab, emit);
         if (oldTab.controller.value) {
           await oldTab.controller.setClientFocus(false);
           await oldTab.controller.wasHidden(true);
@@ -761,6 +897,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
       final tabsList = isPrivate ? state.privateTabs : state.normalTabs;
 
       for (final tab in tabsList) {
+        _pullToRefreshTabs.remove(tab.id);
         try {
           unawaited(_disposeOrDeferController(tab.controller));
         } catch (e, stackTrace) {
@@ -819,7 +956,11 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     }
   }
 
-  /// Helper to persist current tabs state.
+  /// Saves the current normal tabs, without waiting.
+  ///
+  /// Each call snapshots the whole list, so only the newest snapshot matters:
+  /// one write runs at a time, and snapshots taken meanwhile collapse into a
+  /// single follow-up write.
   void _persistTabs() {
     if (_tabRepository == null) return;
 
@@ -833,50 +974,28 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
           url: tab.isHomePage ? '' : tab.currentUrl,
           title: tab.title,
           isActive: i == state.activeNormalTabIndex,
-          screenshot: tab.screenshot,
         ),
       );
     }
-    _tabRepository!.deleteAllTabs();
-    _tabRepository!.saveAllTabs(tabsToSave);
+    _pendingTabsSnapshot = tabsToSave;
+    _tabsWrite ??= _writePendingTabs();
   }
 
-  Future<void> _captureTabScreenshot(
-    BrowserTab? tab,
-    Emitter<BrowserState> emit,
-  ) async {
-    if (tab == null) return;
-    if (!tab.controller.value) return;
-    if (tab.isHomePage || tab.currentUrl.isEmpty) return;
-    if (_tabRepository == null) return;
+  /// Completes once the latest tab list has been saved.
+  Future<void> flushPendingWrites() async => _tabsWrite;
 
-    try {
-      final screenshotBytes = await tab.controller.captureScreenshot();
-      if (screenshotBytes != null && screenshotBytes.isNotEmpty) {
-        final isPrivate = tab.isPrivate;
-        final tabsList = isPrivate ? state.privateTabs : state.normalTabs;
-        final index = tabsList.indexWhere((t) => t.id == tab.id);
-
-        if (index != -1) {
-          final updatedTab = tab.copyWith(screenshot: screenshotBytes);
-          final updatedTabs = List<BrowserTab>.from(tabsList);
-          updatedTabs[index] = updatedTab;
-
-          if (isPrivate) {
-            emit(state.copyWith(privateTabs: updatedTabs));
-          } else {
-            emit(state.copyWith(normalTabs: updatedTabs));
-            _persistTabs();
-          }
-        }
+  /// Writes pending tab lists one at a time; only the newest is written.
+  Future<void> _writePendingTabs() async {
+    while (_pendingTabsSnapshot != null) {
+      final tabs = _pendingTabsSnapshot!;
+      _pendingTabsSnapshot = null;
+      try {
+        await _tabRepository!.saveTabs(tabs);
+      } catch (e, stackTrace) {
+        AppLogger.e('Error saving tabs', error: e, stack: stackTrace);
       }
-    } catch (e, stackTrace) {
-      AppLogger.e(
-        "Error capturing tab screenshot",
-        error: e,
-        stack: stackTrace,
-      );
     }
+    _tabsWrite = null;
   }
 
   /// Handler to load a new URL in the active tab.
@@ -892,6 +1011,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
       if (finalUrl.isEmpty) return;
 
       final isUri = Uri.tryParse(event.url.trim())?.isAbsolute;
+      var transition = event.transition;
 
       /// check uri is correct or search
       if (!isUri!) {
@@ -900,10 +1020,12 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
         } else {
           finalUrl =
               '${AppConstants.searchUrlPrefix}${Uri.encodeComponent(finalUrl)}';
+          transition = PageTransition.generated;
         }
       }
 
       final activeTab = state.activeTab!;
+      _pendingTransitions[activeTab.id] = transition;
       final updatedTab = activeTab.copyWith(
         isHomePage: false,
         currentUrl: finalUrl,
@@ -941,6 +1063,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     try {
       final activeTab = state.activeTab;
       if (activeTab != null && activeTab.controller.value) {
+        _pendingTransitions[activeTab.id] = PageTransition.link;
         await activeTab.controller.goBack();
       }
     } catch (e, stackTrace) {
@@ -955,6 +1078,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     try {
       final activeTab = state.activeTab;
       if (activeTab != null && activeTab.controller.value) {
+        _pendingTransitions[activeTab.id] = PageTransition.link;
         await activeTab.controller.goForward();
       }
     } catch (e, stackTrace) {
@@ -969,6 +1093,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     try {
       final activeTab = state.activeTab;
       if (activeTab != null && activeTab.controller.value) {
+        _pendingTransitions[activeTab.id] = PageTransition.reload;
         await activeTab.controller.reload();
       }
     } catch (e, stackTrace) {
@@ -1031,8 +1156,13 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
   }
 
   /// Handler triggered when a tab's URL changes.
-  /// Updates the tab's state and checks if the new URL is bookmarked.
-  void _onUrlChanged(BrowserUrlChanged event, Emitter<BrowserState> emit) {
+  /// Updates the tab's state, checks if the new URL is bookmarked and records
+  /// a history visit.
+  Future<void> _onUrlChanged(
+    BrowserUrlChanged event,
+    Emitter<BrowserState> emit,
+  ) async {
+    final pendingTransition = _pendingTransitions.remove(event.tabId);
     int index = state.normalTabs.indexWhere((t) => t.id == event.tabId);
     bool isPrivate = false;
     if (index == -1) {
@@ -1082,50 +1212,69 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
         );
         return;
       }
-      try {
-        final history = _historyRepository!.getHistory();
-        final now = DateTime.now().millisecondsSinceEpoch;
-        BrowserHistory? entryToSave;
+      await _recordVisit(event.tabId, event.url, pendingTransition);
+    }
+  }
 
-        if (history.isNotEmpty) {
-          final latest = history.first;
-          final elapsed = now - latest.timestamp;
-          if (elapsed < 1500) {
-            AppLogger.i(
-              'Redirect/rapid navigation detected (elapsed: ${elapsed}ms). Overwriting latest history entry from ${latest.url} to ${event.url}',
-            );
-            latest.url = event.url;
-            latest.timestamp = now;
-            entryToSave = latest;
-          }
-        }
+  /// Records a history visit to [url] in [tabId].
+  ///
+  /// [pendingTransition] is set when the user started the navigation. Without
+  /// one, a change within [_redirectWindow] of the tab's previous visit is a
+  /// redirect: it links to that visit, which then drops out of the history
+  /// list.
+  Future<void> _recordVisit(
+    String tabId,
+    String url,
+    PageTransition? pendingTransition,
+  ) async {
+    // Update the tab's bookkeeping before the first await: URL changes are
+    // handled concurrently, and a redirect must see the visit before it.
+    final now = DateTime.now();
+    final previous = _lastVisits[tabId];
+    final soon =
+        previous != null && now.difference(previous.time) < _redirectWindow;
+    if (pendingTransition == null && soon && previous.url == url) {
+      return; // The same URL reported twice.
+    }
+    final isRedirect = pendingTransition == null && soon;
+    final transition =
+        pendingTransition ??
+        (isRedirect ? PageTransition.redirect : PageTransition.link);
+    final visitId = Completer<int?>();
+    _lastVisits[tabId] = (url: url, time: now, id: visitId.future);
 
-        if (entryToSave == null) {
-          AppLogger.i(
-            'Preparing to save new history entry for URL: ${event.url}',
-          );
-          entryToSave = BrowserHistory(
-            url: event.url,
-            title: '',
-            timestamp: now,
-          );
-        }
+    try {
+      final fromVisit = isRedirect ? await previous.id : null;
+      final id = await _historyRepository!.addVisit(
+        url,
+        transition: transition,
+        fromVisit: fromVisit,
+        time: now,
+      );
+      visitId.complete(id);
+      AppLogger.i('Recorded ${transition.name} visit to $url');
+    } catch (e, stackTrace) {
+      visitId.complete(null);
+      AppLogger.e('Error saving history visit', error: e, stack: stackTrace);
+    }
+  }
 
-        AppLogger.i(
-          'Saving history entry to database: url=${entryToSave.url}, title=${entryToSave.title}',
-        );
-        _historyRepository!.saveHistory(entryToSave);
-        AppLogger.i(
-          'Successfully saved history entry: url=${entryToSave.url}, title=${entryToSave.title}',
-        );
-      } catch (e, stackTrace) {
-        AppLogger.e('Error saving history URL', error: e, stack: stackTrace);
-      }
+  /// Deletes visits older than [AppConstants.historyRetention].
+  Future<void> _expireOldHistory() async {
+    try {
+      final cutoff = DateTime.now().subtract(AppConstants.historyRetention);
+      final expired = await _historyRepository!.expireVisitsBefore(cutoff);
+      if (expired > 0) AppLogger.i('Expired $expired old history visits');
+    } catch (e, stackTrace) {
+      AppLogger.e('Error expiring history', error: e, stack: stackTrace);
     }
   }
 
   /// Handler triggered when a tab's document title changes.
-  void _onTitleChanged(BrowserTitleChanged event, Emitter<BrowserState> emit) {
+  Future<void> _onTitleChanged(
+    BrowserTitleChanged event,
+    Emitter<BrowserState> emit,
+  ) async {
     int index = state.normalTabs.indexWhere((t) => t.id == event.tabId);
     bool isPrivate = false;
     if (index == -1) {
@@ -1146,30 +1295,27 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
       emit(state.copyWith(normalTabs: updatedTabs));
     }
 
-    // Update the corresponding history entry's title only if NOT private
-    if (!isPrivate && _historyRepository != null && event.title.isNotEmpty) {
+    // Store the title on the URL this tab last visited, only if NOT private
+    final visit = _lastVisits[event.tabId];
+    if (!isPrivate &&
+        _historyRepository != null &&
+        event.title.isNotEmpty &&
+        visit != null &&
+        visit.url == updatedTab.currentUrl) {
       try {
-        final history = _historyRepository!.getHistory();
-        if (history.isNotEmpty) {
-          final latest = history.first;
-          // Normalize URLs to remove trailing slashes for precise comparison
-          final latestUrlNorm = normalizeUrl(latest.url);
-          final tabUrlNorm = normalizeUrl(updatedTab.currentUrl);
-
-          // Update the history title if the latest entry's URL matches the current tab URL
-          if (latestUrlNorm.toLowerCase() == tabUrlNorm.toLowerCase()) {
-            latest.title = event.title;
-            AppLogger.i(
-              'Preparing to update title for history entry: url=${latest.url}, new title=${latest.title}',
-            );
-            _historyRepository!.saveHistory(latest);
-            AppLogger.i(
-              'Successfully updated title for history entry: url=${latest.url}, title=${latest.title}',
-            );
-
-            final updatedHistory = _historyRepository!.getHistory();
-            emit(state.copyWith(searchResults: updatedHistory));
-          }
+        // The URL's history row exists once its visit has been stored.
+        if (await visit.id == null) return;
+        await _historyRepository!.setTitle(visit.url, event.title);
+        // The address bar reloads suggestions when it gains focus, so only
+        // refresh them here while it's in use.
+        if (_isInteracting) {
+          emit(
+            state.copyWith(
+              searchResults: await _historyRepository!.getHistory(
+                limit: AppConstants.maxHistorySuggestions,
+              ),
+            ),
+          );
         }
       } catch (e, stackTrace) {
         AppLogger.e(
@@ -1242,64 +1388,76 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     Emitter<BrowserState> emit,
   ) async {
     if (_historyRepository != null) {
-      _historyRepository!.clearHistory();
+      _searchGeneration++; // drop any search still running
+      await _historyRepository!.clearHistory();
       emit(state.copyWith(searchResults: const []));
     }
   }
 
   /// Handler triggered when the search/URL query changes.
   /// Filters the history entries matching the query and updates search results.
-  void _onSearchQueryChanged(
+  Future<void> _onSearchQueryChanged(
     BrowserSearchQueryChanged event,
     Emitter<BrowserState> emit,
-  ) {
+  ) async {
     if (_historyRepository == null) return;
-
-    if (event.query.trim().isEmpty) {
-      final allHistory = _historyRepository!.getHistory();
-      emit(state.copyWith(searchResults: allHistory));
-      return;
-    }
-
-    final results = _historyRepository!.searchHistory(event.query);
-
-    final seenUrls = <String>{};
-    final uniqueResults = <BrowserHistory>[];
-    for (final item in results) {
-      final normalizedUrl = item.url.trim().toLowerCase();
-      if (normalizedUrl.isNotEmpty && seenUrls.add(normalizedUrl)) {
-        uniqueResults.add(item);
-      }
-    }
-
-    emit(state.copyWith(searchResults: uniqueResults));
+    await _emitSearchResults(
+      event.query,
+      emit,
+      debounce: AppConstants.searchDebounce,
+    );
   }
 
   /// Handler to delete a specific history item and refresh the search result lists.
-  void _onHistoryItemDeleted(
+  Future<void> _onHistoryItemDeleted(
     BrowserHistoryItemDeleted event,
     Emitter<BrowserState> emit,
-  ) {
-    if (_historyRepository != null) {
-      _historyRepository!.historyBox.remove(event.item.id);
+  ) async {
+    if (_historyRepository == null) return;
+    try {
+      await _historyRepository!.deleteVisit(event.item.id);
+    } catch (e, stackTrace) {
+      AppLogger.e('Error deleting history item', error: e, stack: stackTrace);
+    }
+    await _emitSearchResults(event.currentQuery, emit);
+  }
 
-      if (event.currentQuery.trim().isEmpty) {
-        final allHistory = _historyRepository!.getHistory();
-        emit(state.copyWith(searchResults: allHistory));
+  /// Emits all history for a blank [query], otherwise the matching entries
+  /// with one per URL. Results of an older query are dropped if a newer one
+  /// was started meanwhile; with [debounce], the query only runs if no newer
+  /// one arrives within that time (one query per pause in typing).
+  Future<void> _emitSearchResults(
+    String query,
+    Emitter<BrowserState> emit, {
+    Duration debounce = Duration.zero,
+  }) async {
+    final generation = ++_searchGeneration;
+    if (debounce > Duration.zero) {
+      await Future<void>.delayed(debounce);
+      if (generation != _searchGeneration) return;
+    }
+    try {
+      final List<BrowserHistory> results;
+      if (query.trim().isEmpty) {
+        results = await _historyRepository!.getHistory(
+          limit: AppConstants.maxHistorySuggestions,
+        );
       } else {
-        final results = _historyRepository!.searchHistory(event.currentQuery);
-
+        // One suggestion per URL, from the newest matching visits.
         final seenUrls = <String>{};
-        final uniqueResults = <BrowserHistory>[];
-        for (final item in results) {
-          final normalizedUrl = item.url.trim().toLowerCase();
-          if (normalizedUrl.isNotEmpty && seenUrls.add(normalizedUrl)) {
-            uniqueResults.add(item);
-          }
-        }
-
-        emit(state.copyWith(searchResults: uniqueResults));
+        results = [
+          for (final item in await _historyRepository!.searchHistory(
+            query,
+            limit: AppConstants.maxHistorySuggestions * 5,
+          ))
+            if (seenUrls.add(item.url.trim().toLowerCase())) item,
+        ].take(AppConstants.maxHistorySuggestions).toList();
       }
+      if (generation == _searchGeneration) {
+        emit(state.copyWith(searchResults: results));
+      }
+    } catch (e, stackTrace) {
+      AppLogger.e('Error searching history', error: e, stack: stackTrace);
     }
   }
 
@@ -1310,8 +1468,6 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     if (state.mode == event.mode) return;
 
     final oldTab = state.activeTab;
-    await _captureTabScreenshot(oldTab, emit);
-
     emit(state.copyWith(mode: event.mode));
 
     final newTab = state.activeTab;
@@ -1346,7 +1502,6 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     BrowserTabSwitcherOpened event,
     Emitter<BrowserState> emit,
   ) {
-    // _captureTabScreenshot(state.activeTab, emit);
     emit(state.copyWith(tabSwitcherMode: state.mode));
   }
 
@@ -1449,6 +1604,31 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     }
   }
 
+  /// Keeps [permissionBloc] in step with tab lifetimes: drops prompts and
+  /// per-visit decisions of closed tabs. Done here so every path that removes
+  /// tabs is covered.
+  @override
+  void onChange(Change<BrowserState> change) {
+    super.onChange(change);
+    final permissions = permissionBloc;
+    if (permissions == null) return;
+    final before = change.currentState;
+    final after = change.nextState;
+    if (identical(before.normalTabs, after.normalTabs) &&
+        identical(before.privateTabs, after.privateTabs)) {
+      return;
+    }
+    final remaining = {
+      for (final t in after.normalTabs) t.controller,
+      for (final t in after.privateTabs) t.controller,
+    };
+    for (final t in [...before.normalTabs, ...before.privateTabs]) {
+      if (!remaining.contains(t.controller)) {
+        permissions.add(PermissionControllerDisposed(t.controller));
+      }
+    }
+  }
+
   /// Clean up and dispose of CEF webviews, repositories, and resources.
   @override
   Future<void> close() async {
@@ -1460,8 +1640,11 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
       tab.controller.dispose();
     }
     await WebviewManager().quit();
-    _historyRepository?.close();
-    _bookmarkRepository?.close();
+    await flushPendingWrites();
     return super.close();
   }
 }
+
+/// A history visit recorded in a tab; [id] completes with the visit id once
+/// stored, or null if storing it failed.
+typedef _TabVisit = ({String url, DateTime time, Future<int?> id});

@@ -7,6 +7,7 @@ import 'package:mechanix_browser/features/browser/data/models/bookmark.dart';
 import 'package:mechanix_browser/features/browser/presentation/widgets/add_favorite_dialog.dart';
 import 'package:mechanix_browser/features/browser/presentation/widgets/browser_shortcut_item.dart';
 import 'package:mechanix_browser/features/browser/presentation/widgets/dashed_shortcut_button.dart';
+import 'package:mechanix_browser/features/browser/data/models/page_transition.dart';
 
 class BrowserHomeShortcuts extends StatelessWidget {
   final bool isEditMode;
@@ -61,7 +62,10 @@ class BrowserHomeShortcuts extends StatelessWidget {
                       ),
                     );
                   },
-                  onTap: () => bloc.add(BrowserUrlLoadRequested(fav.url)),
+                  onTap: () => bloc.add(BrowserUrlLoadRequested(
+                    fav.url,
+                    transition: PageTransition.autoBookmark,
+                  )),
                 );
               }),
               if (showAddButton)

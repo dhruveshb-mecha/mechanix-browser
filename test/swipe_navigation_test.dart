@@ -87,7 +87,7 @@ void main() {
 
       // Perform a swipe right gesture (touch down, drag right, touch up)
       final gesture = await tester.startGesture(
-        const Offset(50, 200),
+        const Offset(10, 200), // left edge
         pointer: 1,
         kind: PointerDeviceKind.touch,
       );
@@ -98,6 +98,61 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(fakeBloc.addedEvents, contains(isA<BrowserGoBackRequested>()));
+    });
+
+    testWidgets('Swipe Right starting mid-screen should NOT navigate back', (
+      WidgetTester tester,
+    ) async {
+      canGoBackResult = true;
+      canGoForwardResult = false;
+
+      await initializeWebviewManager(tester);
+
+      final controller = WebviewManager().createWebView();
+      final initControllerFuture = controller.initialize('https://example.com');
+      await tester.pump(const Duration(milliseconds: 100));
+      await initControllerFuture;
+
+      final tab = BrowserTab(
+        id: 'tab_1',
+        controller: controller,
+        currentUrl: 'https://example.com',
+        title: 'Example',
+        isHomePage: false,
+        isLoading: false,
+      );
+
+      final fakeBloc = FakeBrowserBloc();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.dark,
+          home: Scaffold(
+            body: BrowserGestureNavigator(
+              tab: tab,
+              bloc: fakeBloc,
+              child: const SizedBox.expand(),
+            ),
+          ),
+        ),
+      );
+
+      // Perform a swipe right gesture (touch down, drag right, touch up)
+      final gesture = await tester.startGesture(
+        const Offset(300, 200), // middle of the page
+        pointer: 1,
+        kind: PointerDeviceKind.touch,
+      );
+      await gesture.moveBy(const Offset(150, 0));
+      await gesture.up();
+
+      // Wait for async calls to resolve
+      await tester.pumpAndSettle();
+
+      expect(
+        fakeBloc.addedEvents,
+        isNot(contains(isA<BrowserGoBackRequested>())),
+      );
     });
 
     testWidgets(
@@ -128,6 +183,7 @@ void main() {
 
         await tester.pumpWidget(
           MaterialApp(
+            theme: AppTheme.dark,
             home: Scaffold(
               body: BrowserGestureNavigator(
                 tab: tab,
@@ -139,7 +195,7 @@ void main() {
         );
 
         final gesture = await tester.startGesture(
-          const Offset(50, 200),
+          const Offset(10, 200), // left edge
           pointer: 1,
           kind: PointerDeviceKind.touch,
         );
@@ -183,6 +239,7 @@ void main() {
 
         await tester.pumpWidget(
           MaterialApp(
+            theme: AppTheme.dark,
             home: Scaffold(
               body: BrowserGestureNavigator(
                 tab: tab,
@@ -195,7 +252,7 @@ void main() {
 
         // Perform a swipe left gesture (touch down, drag left, touch up)
         final gesture = await tester.startGesture(
-          const Offset(200, 200),
+          const Offset(790, 200), // right edge (800 px wide)
           pointer: 1,
           kind: PointerDeviceKind.touch,
         );
@@ -239,6 +296,7 @@ void main() {
 
         await tester.pumpWidget(
           MaterialApp(
+            theme: AppTheme.dark,
             home: Scaffold(
               body: BrowserGestureNavigator(
                 tab: tab,
@@ -251,7 +309,7 @@ void main() {
 
         // Perform swipe below threshold (50px < 150px)
         final gesture = await tester.startGesture(
-          const Offset(50, 200),
+          const Offset(10, 200), // left edge
           pointer: 1,
           kind: PointerDeviceKind.touch,
         );
@@ -307,6 +365,7 @@ void main() {
 
         await tester.pumpWidget(
           MaterialApp(
+            theme: AppTheme.dark,
             home: Scaffold(
               body: BrowserGestureNavigator(
                 tab: tab,
@@ -319,7 +378,7 @@ void main() {
 
         // Drag large distance (300px >= threshold 150px)
         final gesture = await tester.startGesture(
-          const Offset(50, 200),
+          const Offset(10, 200), // left edge
           pointer: 1,
           kind: PointerDeviceKind.touch,
         );
@@ -366,6 +425,7 @@ void main() {
 
         await tester.pumpWidget(
           MaterialApp(
+            theme: AppTheme.dark,
             home: Scaffold(
               body: BrowserGestureNavigator(
                 tab: tab,
@@ -377,7 +437,7 @@ void main() {
         );
 
         final gesture = await tester.startGesture(
-          const Offset(50, 200),
+          const Offset(10, 200), // left edge
           pointer: 1,
           kind: PointerDeviceKind.touch,
         );
@@ -428,6 +488,7 @@ void main() {
 
         await tester.pumpWidget(
           MaterialApp(
+            theme: AppTheme.dark,
             home: Scaffold(
               body: BrowserGestureNavigator(
                 tab: tab,
@@ -440,7 +501,7 @@ void main() {
 
         // Simulate a mouse drag (PointerDeviceKind.mouse)
         final gesture = await tester.startGesture(
-          const Offset(50, 200),
+          const Offset(10, 200), // left edge
           pointer: 1,
           kind: PointerDeviceKind.mouse,
         );

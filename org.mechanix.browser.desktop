@@ -2,7 +2,7 @@
 Type=Application
 Name=Mechanix Browser
 Comment=Browser for Mechanix OS
-Exec=mechanix_browser -s 1
+Exec=env CHROME_DESKTOP=org.mechanix.browser.desktop mechanix_browser  -v -k
 Icon=org.mechanix.browser
 Terminal=false
 Categories=Network;WebBrowser;

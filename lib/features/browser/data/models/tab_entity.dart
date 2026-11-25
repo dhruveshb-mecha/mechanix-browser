@@ -1,9 +1,4 @@
-import 'dart:typed_data';
-import 'package:objectbox/objectbox.dart';
-
-@Entity()
 class TabEntity {
-  @Id()
   int id;
 
   String tabId;
@@ -11,7 +6,6 @@ class TabEntity {
   String url;
   String title;
   bool isActive;
-  Uint8List? screenshot;
 
   TabEntity({
     this.id = 0,
@@ -20,6 +14,5 @@ class TabEntity {
     required this.url,
     required this.title,
     required this.isActive,
-    this.screenshot,
   });
 }

@@ -1,8 +1,4 @@
-import 'package:objectbox/objectbox.dart';
-
-@Entity()
 class DownloadEntity {
-  @Id()
   int id = 0;
 
   int cefDownloadId;
