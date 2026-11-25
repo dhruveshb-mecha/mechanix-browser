@@ -56,7 +56,8 @@ jobs:
     needs: version
     runs-on: ubuntu-24.04-arm
     environment: canary
-    container: registry.fedoraproject.org/fedora:${{ matrix.fedora }}
+    # Built on Ubuntu 24.04 (GCC 13): CEF 152 needs C++20, and Fedora's GCC 16
+    # rejects Flutter's EncodableValue in C++20. The binary runs on fc44/fc45.
     strategy:
       fail-fast: false
       matrix:
@@ -73,18 +74,18 @@ jobs:
     steps:
       - name: Install build dependencies
         run: |
-          dnf -y install git tar unzip xz curl jq which findutils python3 file \
-            clang cmake ninja-build pkgconf-pkg-config gcc-c++ \
-            wayland-devel libxkbcommon-devel mesa-libEGL-devel mesa-libGLES-devel \
-            gstreamer1-devel gstreamer1-plugins-base-devel libpng-devel binutils sqlite-devel \
-            nss nspr nss-util atk at-spi2-atk at-spi2-core cups-libs dbus-libs expat \
-            libX11 libXcomposite libXdamage libXext libXfixes libXrandr libxcb \
-            alsa-lib cairo pango mesa-libgbm
+          sudo apt update
+          sudo apt install -y git tar unzip curl clang cmake pkg-config \
+            libwayland-dev libwayland-cursor0 libwayland-egl1 \
+            libwayland-egl-backend-dev libegl1-mesa-dev libgles2-mesa-dev libxkbcommon-dev \
+            libgstreamer1.0-dev \
+            libgstreamer-plugins-base1.0-dev libpng-dev libsqlite3-dev \
+            build-essential jq python3-venv
 
       - name: Install nfpm
         run: |
           curl -fsSL "https://github.com/goreleaser/nfpm/releases/download/v${NFPM_VERSION}/nfpm_${NFPM_VERSION}_Linux_arm64.tar.gz" \
-            | tar -xz -C /usr/local/bin nfpm
+            | sudo tar -xz -C /usr/local/bin nfpm
           nfpm --version
 
       - name: Install mechanix-packager
