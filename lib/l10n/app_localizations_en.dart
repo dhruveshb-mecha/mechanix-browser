@@ -398,4 +398,67 @@ class AppLocalizationsEn extends AppLocalizations {
   String downloadProgressOf(String received, String total) {
     return '$received of $total';
   }
+
+  @override
+  String permissionPromptTitle(String host) {
+    return '$host wants to';
+  }
+
+  @override
+  String get permissionCameraRequest => 'Use your camera';
+
+  @override
+  String get permissionMicrophoneRequest => 'Use your microphone';
+
+  @override
+  String get permissionLocationRequest => 'Know your location';
+
+  @override
+  String get permissionNotificationsRequest => 'Show notifications';
+
+  @override
+  String get permissionClipboardRequest => 'See text and images copied to the clipboard';
+
+  @override
+  String get permissionMidiRequest => 'Use your MIDI devices';
+
+  @override
+  String get permissionAllow => 'Allow';
+
+  @override
+  String get permissionBlock => 'Block';
+
+  @override
+  String get permissionNotNow => 'Not now';
+
+  @override
+  String get permissionPromptPrivateNote => 'In private mode, this choice is forgotten when you close this tab.';
+
+  @override
+  String get permissionCamera => 'Camera';
+
+  @override
+  String get permissionMicrophone => 'Microphone';
+
+  @override
+  String get permissionLocation => 'Location';
+
+  @override
+  String get permissionNotifications => 'Notifications';
+
+  @override
+  String get permissionClipboard => 'Clipboard';
+
+  @override
+  String get permissionMidi => 'MIDI devices';
+
+
+
+
+
+
+
+
+  @override
+  String get reset => 'Reset';
 }

@@ -818,6 +818,121 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{received} of {total}'**
   String downloadProgressOf(String received, String total);
+
+  /// Title of the permission prompt; the requested permissions are listed below it
+  ///
+  /// In en, this message translates to:
+  /// **'{host} wants to'**
+  String permissionPromptTitle(String host);
+
+  /// Prompt line for a camera request, completing '<site> wants to'
+  ///
+  /// In en, this message translates to:
+  /// **'Use your camera'**
+  String get permissionCameraRequest;
+
+  /// Prompt line for a microphone request
+  ///
+  /// In en, this message translates to:
+  /// **'Use your microphone'**
+  String get permissionMicrophoneRequest;
+
+  /// Prompt line for a location request
+  ///
+  /// In en, this message translates to:
+  /// **'Know your location'**
+  String get permissionLocationRequest;
+
+  /// Prompt line for a notifications request
+  ///
+  /// In en, this message translates to:
+  /// **'Show notifications'**
+  String get permissionNotificationsRequest;
+
+  /// Prompt line for a clipboard request
+  ///
+  /// In en, this message translates to:
+  /// **'See text and images copied to the clipboard'**
+  String get permissionClipboardRequest;
+
+  /// Prompt line for a MIDI request
+  ///
+  /// In en, this message translates to:
+  /// **'Use your MIDI devices'**
+  String get permissionMidiRequest;
+
+  /// Button that grants the requested permission
+  ///
+  /// In en, this message translates to:
+  /// **'Allow'**
+  String get permissionAllow;
+
+  /// Button that denies the requested permission
+  ///
+  /// In en, this message translates to:
+  /// **'Block'**
+  String get permissionBlock;
+
+  /// Tooltip of the button that closes the permission prompt without deciding
+  ///
+  /// In en, this message translates to:
+  /// **'Not now'**
+  String get permissionNotNow;
+
+  /// Note shown on the permission prompt in private tabs
+  ///
+  /// In en, this message translates to:
+  /// **'In private mode, this choice is forgotten when you close this tab.'**
+  String get permissionPromptPrivateNote;
+
+  /// Short name of the camera permission
+  ///
+  /// In en, this message translates to:
+  /// **'Camera'**
+  String get permissionCamera;
+
+  /// Short name of the microphone permission
+  ///
+  /// In en, this message translates to:
+  /// **'Microphone'**
+  String get permissionMicrophone;
+
+  /// Short name of the location permission
+  ///
+  /// In en, this message translates to:
+  /// **'Location'**
+  String get permissionLocation;
+
+  /// Short name of the notifications permission
+  ///
+  /// In en, this message translates to:
+  /// **'Notifications'**
+  String get permissionNotifications;
+
+  /// Short name of the clipboard permission
+  ///
+  /// In en, this message translates to:
+  /// **'Clipboard'**
+  String get permissionClipboard;
+
+  /// Short name of the MIDI permission
+  ///
+  /// In en, this message translates to:
+  /// **'MIDI devices'**
+  String get permissionMidi;
+
+
+
+
+
+
+
+
+  /// Generic reset button text
+  ///
+  /// In en, this message translates to:
+  /// **'Reset'**
+  String get reset;
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

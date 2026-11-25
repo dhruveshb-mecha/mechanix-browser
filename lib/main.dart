@@ -10,6 +10,7 @@ import 'package:mechanix_browser/core/utils/app_theme.dart';
 import 'package:mechanix_browser/features/browser/bloc/browser_bloc.dart';
 import 'package:mechanix_browser/features/browser/bloc/download/download_bloc.dart';
 import 'package:mechanix_browser/features/browser/bloc/history/history_bloc.dart';
+import 'package:mechanix_browser/features/browser/bloc/permission/permission_bloc.dart';
 import 'package:mechanix_browser/features/browser/data/repositories/history_repository.dart';
 import 'package:mechanix_browser/features/browser/data/repositories/history_repository_impl.dart';
 import 'package:mechanix_browser/l10n/app_localizations.dart';
@@ -42,6 +43,7 @@ class _MyAppState extends State<MyApp> {
   late final BrowserBloc _browserBloc;
   late final DownloadBloc _downloadBloc;
   late final HistoryBloc _historyBloc;
+  late final PermissionBloc _permissionBloc;
 
   @override
   void initState() {
@@ -50,7 +52,12 @@ class _MyAppState extends State<MyApp> {
       repository: DownloadRepositoryImpl(),
     )..add(const DownloadInitializeRequested());
 
-    _browserBloc = BrowserBloc(downloadBloc: _downloadBloc);
+    _permissionBloc = PermissionBloc();
+
+    _browserBloc = BrowserBloc(
+      downloadBloc: _downloadBloc,
+      permissionBloc: _permissionBloc,
+    );
 
     _historyBloc = HistoryBloc(repository: HistoryRepositoryImpl());
 
@@ -77,6 +84,7 @@ class _MyAppState extends State<MyApp> {
     _browserBloc.close();
     _downloadBloc.close();
     _historyBloc.close();
+    _permissionBloc.close();
     super.dispose();
   }
 
@@ -98,6 +106,7 @@ class _MyAppState extends State<MyApp> {
           BlocProvider<DownloadBloc>.value(value: _downloadBloc),
           BlocProvider<BrowserBloc>.value(value: _browserBloc),
           BlocProvider<HistoryBloc>.value(value: _historyBloc),
+          BlocProvider<PermissionBloc>.value(value: _permissionBloc),
         ],
         child: MaterialApp(
           onGenerateTitle: (context) => AppLocalizations.of(context)!.appTitle,
