@@ -123,7 +123,6 @@ class Tabs extends Table {
   TextColumn get url => text()();
   TextColumn get title => text()();
   BoolColumn get isActive => boolean()();
-  BlobColumn get screenshot => blob().nullable()();
 }
 
 @DriftDatabase(tables: [Urls, Visits, Downloads, Tabs], views: [HistoryEntries])
@@ -150,7 +149,7 @@ class AppDatabase extends _$AppDatabase {
 
   /// Bump on every schema change and add the matching step to [migration].
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -158,6 +157,8 @@ class AppDatabase extends _$AppDatabase {
     onUpgrade: (m, from, to) async {
       // One step per version.
       if (from < 2) await m.createIndex(visitsRedirectSource);
+      // v3 dropped tabs.screenshot; rebuild the table without it.
+      if (from < 3) await m.alterTable(TableMigration(tabs));
     },
     // SQLite leaves foreign keys off per connection; visits rely on them for
     // ON DELETE CASCADE / SET NULL.
@@ -191,6 +192,5 @@ extension TabEntityToCompanion on TabEntity {
     url: Value(url),
     title: Value(title),
     isActive: Value(isActive),
-    screenshot: Value(screenshot),
   );
 }

@@ -25,19 +25,13 @@ class TabRepository {
 
   /// Makes the saved tabs match [tabs], atomically: tabs no longer open are
   /// deleted, the rest inserted or updated by `tabId`.
-  ///
-  /// Screenshots are left as they are (see [saveScreenshot]), so saving the
-  /// tab list doesn't rewrite every screenshot blob.
   Future<void> saveTabs(List<TabEntity> tabs) => _db.batch((batch) {
     batch.deleteWhere(
       _db.tabs,
       (t) => t.tabId.isNotIn([for (final tab in tabs) tab.tabId]),
     );
     for (final tab in tabs) {
-      final row = tab.toCompanion().copyWith(
-        id: const Value.absent(),
-        screenshot: const Value.absent(),
-      );
+      final row = tab.toCompanion().copyWith(id: const Value.absent());
       batch.insert(
         _db.tabs,
         row,
@@ -45,10 +39,4 @@ class TabRepository {
       );
     }
   });
-
-  /// Stores the screenshot of the saved tab [tabId], if it is saved.
-  Future<void> saveScreenshot(String tabId, Uint8List screenshot) =>
-      (_db.update(_db.tabs)..where((t) => t.tabId.equals(tabId))).write(
-        TabsCompanion(screenshot: Value(screenshot)),
-      );
 }

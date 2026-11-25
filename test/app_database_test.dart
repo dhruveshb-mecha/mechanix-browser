@@ -37,7 +37,34 @@ void main() {
       final version = await upgraded
           .customSelect('PRAGMA user_version')
           .getSingle();
-      expect(version.data.values.single, 2);
+      expect(version.data.values.single, 3);
+    });
+
+    test('v2 -> v3 drops tabs.screenshot and keeps saved tabs', () async {
+      final dir = Directory.systemTemp.createTempSync('migration_test');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      final file = File('${dir.path}/browser.sqlite');
+
+      // Make a v2 database: today's schema plus the screenshot column, with
+      // a saved tab that has a screenshot.
+      final v2 = AppDatabase(NativeDatabase(file));
+      await v2.customStatement('ALTER TABLE tabs ADD COLUMN screenshot BLOB');
+      await v2.customStatement(
+        "INSERT INTO tabs (tab_id, tab_index, url, title, is_active, screenshot) "
+        "VALUES ('t1', 0, 'https://a.example/', 'A', 1, x'010203')",
+      );
+      await v2.customStatement('PRAGMA user_version = 2');
+      await v2.close();
+
+      final upgraded = AppDatabase(NativeDatabase(file));
+      addTearDown(upgraded.close);
+      final columns = await upgraded
+          .customSelect('PRAGMA table_info(tabs)')
+          .get();
+      expect(columns.map((c) => c.read<String>('name')), isNot(contains('screenshot')));
+      final tab = await upgraded.select(upgraded.tabs).getSingle();
+      expect((tab.tabId, tab.url, tab.title, tab.isActive),
+          ('t1', 'https://a.example/', 'A', true));
     });
   });
 
@@ -102,7 +129,7 @@ void main() {
         'index:visits_visit_time',
       ],
     );
-    expect(db.schemaVersion, 2);
+    expect(db.schemaVersion, 3);
   });
 
   group('history', () {
@@ -217,15 +244,13 @@ void main() {
       url: 'https://t.example/',
       title: title,
       isActive: true,
-      screenshot: Uint8List.fromList([1, 2, 3]),
     );
 
-    test('round-trips the screenshot; tabId is unique', () async {
+    test('round-trips a tab; tabId is unique', () async {
       await db.into(db.tabs).insert(tab('t1').toCompanion());
       final t = await db.select(db.tabs).getSingle();
       expect(t.tabId, 't1');
       expect(t.isActive, isTrue);
-      expect(t.screenshot, [1, 2, 3]);
 
       await expectLater(
         db.into(db.tabs).insert(tab('t1').toCompanion()),

@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 class TabEntity {
   int id;
 
@@ -8,7 +6,6 @@ class TabEntity {
   String url;
   String title;
   bool isActive;
-  Uint8List? screenshot;
 
   TabEntity({
     this.id = 0,
@@ -17,6 +14,5 @@ class TabEntity {
     required this.url,
     required this.title,
     required this.isActive,
-    this.screenshot,
   });
 }

@@ -658,7 +658,7 @@ packages:
     description:
       path: "."
       ref: main
-      resolved-ref: "4d4d1f3057b6a485ae12ddacec14fe0c3915209e"
+      resolved-ref: "346c4ec9c94ccd6b3df6cd0a59a6b09c05fd8be1"
       url: "https://github.com/mecha-org/webview_cef.git"
     source: git
     version: "0.5.1"

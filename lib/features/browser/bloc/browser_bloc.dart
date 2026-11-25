@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:equatable/equatable.dart';
 import 'package:flutter/material.dart';
@@ -60,8 +59,6 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
   List<TabEntity>? _pendingTabsSnapshot;
   Future<void>? _tabsWrite;
 
-  /// Screenshots captured but not yet saved, by tab id (newest wins).
-  final _pendingScreenshots = <String, Uint8List>{};
 
   /// Local incremental counter for unique tab ID generation.
   int _tabIdCounter = 0;
@@ -462,7 +459,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
             tabEntity.url.isEmpty ? AppConstants.homepageUrl : tabEntity.url,
             id: tabEntity.tabId,
             load: tabEntity.isActive,
-          ).copyWith(screenshot: tabEntity.screenshot);
+          );
 
           tabs.add(tab);
           if (tabEntity.isActive) {
@@ -632,7 +629,6 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
       }
       final oldTab = state.activeTab;
       if (oldTab != null) {
-        await _captureTabScreenshot(oldTab, emit);
         if (oldTab.controller.value) {
           await oldTab.controller.setClientFocus(false);
           await oldTab.controller.wasHidden(true);
@@ -833,7 +829,6 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
       if (state.mode == targetMode && activeIndex == index) return;
 
       if (oldTab != null) {
-        await _captureTabScreenshot(oldTab, emit);
         if (oldTab.controller.value) {
           await oldTab.controller.setClientFocus(false);
           await oldTab.controller.wasHidden(true);
@@ -961,7 +956,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     }
   }
 
-  /// Saves the current normal tabs (without screenshots), without waiting.
+  /// Saves the current normal tabs, without waiting.
   ///
   /// Each call snapshots the whole list, so only the newest snapshot matters:
   /// one write runs at a time, and snapshots taken meanwhile collapse into a
@@ -986,72 +981,21 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     _tabsWrite ??= _writePendingTabs();
   }
 
-  /// Saves a captured screenshot for its tab only, without waiting.
-  void _persistScreenshot(String tabId, Uint8List screenshot) {
-    if (_tabRepository == null) return;
-    _pendingScreenshots[tabId] = screenshot;
-    _tabsWrite ??= _writePendingTabs();
-  }
-
   /// Completes once the latest tab list has been saved.
   Future<void> flushPendingWrites() async => _tabsWrite;
 
-  /// Writes pending tab lists and screenshots one at a time. The tab list
-  /// goes first, so a new tab's row exists before its screenshot is saved.
+  /// Writes pending tab lists one at a time; only the newest is written.
   Future<void> _writePendingTabs() async {
-    while (_pendingTabsSnapshot != null || _pendingScreenshots.isNotEmpty) {
-      final tabs = _pendingTabsSnapshot;
+    while (_pendingTabsSnapshot != null) {
+      final tabs = _pendingTabsSnapshot!;
       _pendingTabsSnapshot = null;
-      final screenshots = Map.of(_pendingScreenshots);
-      _pendingScreenshots.clear();
       try {
-        if (tabs != null) await _tabRepository!.saveTabs(tabs);
-        for (final MapEntry(key: tabId, value: png) in screenshots.entries) {
-          await _tabRepository!.saveScreenshot(tabId, png);
-        }
+        await _tabRepository!.saveTabs(tabs);
       } catch (e, stackTrace) {
         AppLogger.e('Error saving tabs', error: e, stack: stackTrace);
       }
     }
     _tabsWrite = null;
-  }
-
-  Future<void> _captureTabScreenshot(
-    BrowserTab? tab,
-    Emitter<BrowserState> emit,
-  ) async {
-    if (tab == null) return;
-    if (!tab.controller.value) return;
-    if (tab.isHomePage || tab.currentUrl.isEmpty) return;
-    if (_tabRepository == null) return;
-
-    try {
-      final screenshotBytes = await tab.controller.captureScreenshot();
-      if (screenshotBytes != null && screenshotBytes.isNotEmpty) {
-        final isPrivate = tab.isPrivate;
-        final tabsList = isPrivate ? state.privateTabs : state.normalTabs;
-        final index = tabsList.indexWhere((t) => t.id == tab.id);
-
-        if (index != -1) {
-          final updatedTab = tab.copyWith(screenshot: screenshotBytes);
-          final updatedTabs = List<BrowserTab>.from(tabsList);
-          updatedTabs[index] = updatedTab;
-
-          if (isPrivate) {
-            emit(state.copyWith(privateTabs: updatedTabs));
-          } else {
-            emit(state.copyWith(normalTabs: updatedTabs));
-            _persistScreenshot(tab.id, screenshotBytes);
-          }
-        }
-      }
-    } catch (e, stackTrace) {
-      AppLogger.e(
-        "Error capturing tab screenshot",
-        error: e,
-        stack: stackTrace,
-      );
-    }
   }
 
   /// Handler to load a new URL in the active tab.
@@ -1524,8 +1468,6 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     if (state.mode == event.mode) return;
 
     final oldTab = state.activeTab;
-    await _captureTabScreenshot(oldTab, emit);
-
     emit(state.copyWith(mode: event.mode));
 
     final newTab = state.activeTab;
@@ -1560,7 +1502,6 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     BrowserTabSwitcherOpened event,
     Emitter<BrowserState> emit,
   ) {
-    // _captureTabScreenshot(state.activeTab, emit);
     emit(state.copyWith(tabSwitcherMode: state.mode));
   }
 

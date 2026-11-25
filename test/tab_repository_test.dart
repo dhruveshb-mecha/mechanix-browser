@@ -14,7 +14,6 @@ TabEntity entity(String tabId, int index, {bool active = false}) => TabEntity(
   url: 'https://$tabId.example/',
   title: tabId,
   isActive: active,
-  screenshot: Uint8List.fromList([index, 1, 2]),
 );
 
 /// Counts writes and makes each one slow, so writes overlap with new tab
@@ -72,26 +71,6 @@ void main() {
       ('b', 1, false),
     ]);
     expect(tabs.first.url, 'https://a.example/');
-  });
-
-  test('screenshots are saved per tab and kept by later tab saves', () async {
-    final repository = TabRepository(db: db);
-    await repository.saveTabs([entity('a', 0), entity('b', 1)]);
-    expect((await repository.getAllTabs()).map((t) => t.screenshot), [
-      null,
-      null,
-    ], reason: 'saveTabs never writes screenshots');
-
-    await repository.saveScreenshot('b', Uint8List.fromList([7, 7]));
-    await repository.saveScreenshot('missing', Uint8List.fromList([1]));
-    // Reorder and rename: the screenshot stays with its tab.
-    final b = entity('b', 0)..title = 'renamed';
-    await repository.saveTabs([b, entity('a', 1)]);
-
-    final [first, second] = await repository.getAllTabs();
-    expect((first.tabId, first.title), ('b', 'renamed'));
-    expect(first.screenshot, [7, 7]);
-    expect((second.tabId, second.screenshot), ('a', null));
   });
 
   test('saving drops tabs that are gone and keeps row ids', () async {

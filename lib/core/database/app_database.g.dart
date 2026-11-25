@@ -1365,17 +1365,6 @@ class $TabsTable extends Tabs with TableInfo<$TabsTable, TabEntity> {
       'CHECK ("is_active" IN (0, 1))',
     ),
   );
-  static const VerificationMeta _screenshotMeta = const VerificationMeta(
-    'screenshot',
-  );
-  @override
-  late final GeneratedColumn<Uint8List> screenshot = GeneratedColumn<Uint8List>(
-    'screenshot',
-    aliasedName,
-    true,
-    type: DriftSqlType.blob,
-    requiredDuringInsert: false,
-  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -1384,7 +1373,6 @@ class $TabsTable extends Tabs with TableInfo<$TabsTable, TabEntity> {
     url,
     title,
     isActive,
-    screenshot,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -1441,12 +1429,6 @@ class $TabsTable extends Tabs with TableInfo<$TabsTable, TabEntity> {
     } else if (isInserting) {
       context.missing(_isActiveMeta);
     }
-    if (data.containsKey('screenshot')) {
-      context.handle(
-        _screenshotMeta,
-        screenshot.isAcceptableOrUnknown(data['screenshot']!, _screenshotMeta),
-      );
-    }
     return context;
   }
 
@@ -1480,10 +1462,6 @@ class $TabsTable extends Tabs with TableInfo<$TabsTable, TabEntity> {
         DriftSqlType.bool,
         data['${effectivePrefix}is_active'],
       )!,
-      screenshot: attachedDatabase.typeMapping.read(
-        DriftSqlType.blob,
-        data['${effectivePrefix}screenshot'],
-      ),
     );
   }
 
@@ -1500,7 +1478,6 @@ class TabsCompanion extends UpdateCompanion<TabEntity> {
   final Value<String> url;
   final Value<String> title;
   final Value<bool> isActive;
-  final Value<Uint8List?> screenshot;
   const TabsCompanion({
     this.id = const Value.absent(),
     this.tabId = const Value.absent(),
@@ -1508,7 +1485,6 @@ class TabsCompanion extends UpdateCompanion<TabEntity> {
     this.url = const Value.absent(),
     this.title = const Value.absent(),
     this.isActive = const Value.absent(),
-    this.screenshot = const Value.absent(),
   });
   TabsCompanion.insert({
     this.id = const Value.absent(),
@@ -1517,7 +1493,6 @@ class TabsCompanion extends UpdateCompanion<TabEntity> {
     required String url,
     required String title,
     required bool isActive,
-    this.screenshot = const Value.absent(),
   }) : tabId = Value(tabId),
        tabIndex = Value(tabIndex),
        url = Value(url),
@@ -1530,7 +1505,6 @@ class TabsCompanion extends UpdateCompanion<TabEntity> {
     Expression<String>? url,
     Expression<String>? title,
     Expression<bool>? isActive,
-    Expression<Uint8List>? screenshot,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -1539,7 +1513,6 @@ class TabsCompanion extends UpdateCompanion<TabEntity> {
       if (url != null) 'url': url,
       if (title != null) 'title': title,
       if (isActive != null) 'is_active': isActive,
-      if (screenshot != null) 'screenshot': screenshot,
     });
   }
 
@@ -1550,7 +1523,6 @@ class TabsCompanion extends UpdateCompanion<TabEntity> {
     Value<String>? url,
     Value<String>? title,
     Value<bool>? isActive,
-    Value<Uint8List?>? screenshot,
   }) {
     return TabsCompanion(
       id: id ?? this.id,
@@ -1559,7 +1531,6 @@ class TabsCompanion extends UpdateCompanion<TabEntity> {
       url: url ?? this.url,
       title: title ?? this.title,
       isActive: isActive ?? this.isActive,
-      screenshot: screenshot ?? this.screenshot,
     );
   }
 
@@ -1584,9 +1555,6 @@ class TabsCompanion extends UpdateCompanion<TabEntity> {
     if (isActive.present) {
       map['is_active'] = Variable<bool>(isActive.value);
     }
-    if (screenshot.present) {
-      map['screenshot'] = Variable<Uint8List>(screenshot.value);
-    }
     return map;
   }
 
@@ -1598,8 +1566,7 @@ class TabsCompanion extends UpdateCompanion<TabEntity> {
           ..write('tabIndex: $tabIndex, ')
           ..write('url: $url, ')
           ..write('title: $title, ')
-          ..write('isActive: $isActive, ')
-          ..write('screenshot: $screenshot')
+          ..write('isActive: $isActive')
           ..write(')'))
         .toString();
   }
@@ -2828,7 +2795,6 @@ typedef $$TabsTableCreateCompanionBuilder =
       required String url,
       required String title,
       required bool isActive,
-      Value<Uint8List?> screenshot,
     });
 typedef $$TabsTableUpdateCompanionBuilder =
     TabsCompanion Function({
@@ -2838,7 +2804,6 @@ typedef $$TabsTableUpdateCompanionBuilder =
       Value<String> url,
       Value<String> title,
       Value<bool> isActive,
-      Value<Uint8List?> screenshot,
     });
 
 class $$TabsTableFilterComposer extends Composer<_$AppDatabase, $TabsTable> {
@@ -2876,11 +2841,6 @@ class $$TabsTableFilterComposer extends Composer<_$AppDatabase, $TabsTable> {
 
   ColumnFilters<bool> get isActive => $composableBuilder(
     column: $table.isActive,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<Uint8List> get screenshot => $composableBuilder(
-    column: $table.screenshot,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -2922,11 +2882,6 @@ class $$TabsTableOrderingComposer extends Composer<_$AppDatabase, $TabsTable> {
     column: $table.isActive,
     builder: (column) => ColumnOrderings(column),
   );
-
-  ColumnOrderings<Uint8List> get screenshot => $composableBuilder(
-    column: $table.screenshot,
-    builder: (column) => ColumnOrderings(column),
-  );
 }
 
 class $$TabsTableAnnotationComposer
@@ -2955,11 +2910,6 @@ class $$TabsTableAnnotationComposer
 
   GeneratedColumn<bool> get isActive =>
       $composableBuilder(column: $table.isActive, builder: (column) => column);
-
-  GeneratedColumn<Uint8List> get screenshot => $composableBuilder(
-    column: $table.screenshot,
-    builder: (column) => column,
-  );
 }
 
 class $$TabsTableTableManager
@@ -2996,7 +2946,6 @@ class $$TabsTableTableManager
                 Value<String> url = const Value.absent(),
                 Value<String> title = const Value.absent(),
                 Value<bool> isActive = const Value.absent(),
-                Value<Uint8List?> screenshot = const Value.absent(),
               }) => TabsCompanion(
                 id: id,
                 tabId: tabId,
@@ -3004,7 +2953,6 @@ class $$TabsTableTableManager
                 url: url,
                 title: title,
                 isActive: isActive,
-                screenshot: screenshot,
               ),
           createCompanionCallback:
               ({
@@ -3014,7 +2962,6 @@ class $$TabsTableTableManager
                 required String url,
                 required String title,
                 required bool isActive,
-                Value<Uint8List?> screenshot = const Value.absent(),
               }) => TabsCompanion.insert(
                 id: id,
                 tabId: tabId,
@@ -3022,7 +2969,6 @@ class $$TabsTableTableManager
                 url: url,
                 title: title,
                 isActive: isActive,
-                screenshot: screenshot,
               ),
           withReferenceMapper: (p0) => p0
               .map(
