@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -306,9 +308,19 @@ class _BrowserGestureNavigatorState extends State<BrowserGestureNavigator>
   static const double bottomBarScrollThreshold = 40.0;
   static const Duration indicatorDismissDuration = Duration(milliseconds: 200);
 
+  /// How far the refresh indicator has to be pulled (after resistance).
+  static const double pullRefreshThreshold = 80.0;
+
+  /// The indicator moves at half the finger's speed, as on Android.
+  static const double _pullResistance = 0.5;
+
   Offset? _startPosition;
   bool _isGestureRejected = false;
   bool _hasNavigated = false;
+
+  /// Navigation this touch may perform, decided by where it started (see
+  /// [SwipeGestureClassifier.edgeSwipeFor]).
+  SwipeDirection _edgeSwipe = SwipeDirection.none;
 
   double _accumulatedScroll = 0.0;
   bool? _isScrollDirectionDown;
@@ -320,6 +332,12 @@ class _BrowserGestureNavigatorState extends State<BrowserGestureNavigator>
 
   bool _canGoBack = false;
   bool _canGoForward = false;
+
+  /// Pull-to-refresh: indicator offset in logical px; 0 when not pulling.
+  double _pullDistance = 0.0;
+
+  /// True while the indicator slides back after the finger is lifted.
+  bool _pullReleasing = false;
 
   late AnimationController _dismissController;
   Animation<double>? _dismissAnimation;
@@ -343,6 +361,8 @@ class _BrowserGestureNavigatorState extends State<BrowserGestureNavigator>
     if (widget.tab.id != oldWidget.tab.id ||
         widget.tab.currentUrl != oldWidget.tab.currentUrl) {
       _dismissIndicatorImmediate();
+      _pullDistance = 0.0;
+      _pullReleasing = false;
       _updateNavigationAvailability();
     }
   }
@@ -372,6 +392,39 @@ class _BrowserGestureNavigatorState extends State<BrowserGestureNavigator>
         _indicatorDirection = SwipeDirection.none;
       });
     }
+  }
+
+  /// Follows a downward drag while the page allows pull-to-refresh (see
+  /// [BrowserBloc.canPullToRefresh]); rebuilds only while actually pulling.
+  void _updatePull(double dy) {
+    final pageAllows = widget.bloc.canPullToRefresh(widget.tab.id);
+    final allowed = dy > 0 && pageAllows;
+    final distance = allowed
+        ? (dy * _pullResistance).clamp(0.0, pullRefreshThreshold * 1.5)
+        : 0.0;
+    if (distance != _pullDistance) {
+      setState(() {
+        _pullReleasing = false;
+        _pullDistance = distance;
+      });
+    }
+  }
+
+  /// Ends the pull: refreshes if it went past the threshold, then lets the
+  /// indicator slide away (the page's loading bar shows the reload).
+  void _endPull({required bool refresh}) {
+    if (_pullDistance == 0.0) return;
+    final reload =
+        refresh &&
+        _pullDistance >= pullRefreshThreshold &&
+        widget.bloc.canPullToRefresh(widget.tab.id);
+    if (reload) {
+      widget.bloc.add(const BrowserReloadRequested());
+    }
+    setState(() {
+      _pullReleasing = true;
+      _pullDistance = 0.0;
+    });
   }
 
   void _dismissIndicatorSmoothly() {
@@ -408,7 +461,15 @@ class _BrowserGestureNavigatorState extends State<BrowserGestureNavigator>
               }
               _dismissController.stop();
               _startPosition = event.localPosition;
-              _isGestureRejected = false;
+              final width = context.size?.width ?? 0;
+              _edgeSwipe = SwipeGestureClassifier.edgeSwipeFor(
+                event.localPosition,
+                width,
+              );
+              // While text is selected, horizontal drags move the selection
+              // handles, so they must not navigate.
+              _isGestureRejected =
+                  widget.tab.controller.touchSelection.isActive;
               _hasNavigated = false;
               _gestureType = _GestureType.undecided;
               _accumulatedScroll = 0.0;
@@ -431,12 +492,21 @@ class _BrowserGestureNavigatorState extends State<BrowserGestureNavigator>
                         true; // Reject swipe navigation gesture
                   } else {
                     _gestureType = _GestureType.horizontal;
+                    // Only a swipe from the left edge goes back, and only
+                    // one from the right edge goes forward.
+                    final direction = dx > 0
+                        ? SwipeDirection.back
+                        : SwipeDirection.forward;
+                    if (direction != _edgeSwipe) {
+                      _isGestureRejected = true;
+                    }
                   }
                 }
               }
 
               // 2. Track vertical scrolling delta
               if (_gestureType == _GestureType.vertical) {
+                _updatePull(dy);
                 final deltaY = event.delta.dy;
                 if (deltaY.abs() > 0.5) {
                   final currentScrollDown =
@@ -463,6 +533,14 @@ class _BrowserGestureNavigatorState extends State<BrowserGestureNavigator>
                     }
                   }
                 }
+              }
+
+              // A long press can select text mid-gesture; from then on the
+              // drag moves the selection, so it must not navigate.
+              if (!_isGestureRejected &&
+                  widget.tab.controller.touchSelection.isActive) {
+                _isGestureRejected = true;
+                _dismissIndicatorImmediate();
               }
 
               if (_isGestureRejected || _hasNavigated) {
@@ -525,6 +603,7 @@ class _BrowserGestureNavigatorState extends State<BrowserGestureNavigator>
               }
             },
             onPointerUp: (PointerUpEvent event) async {
+              _endPull(refresh: true);
               final wasUndecided = _gestureType == _GestureType.undecided;
               _gestureType = _GestureType.undecided;
               _accumulatedScroll = 0.0;
@@ -561,6 +640,7 @@ class _BrowserGestureNavigatorState extends State<BrowserGestureNavigator>
               _dismissIndicatorSmoothly();
             },
             onPointerCancel: (PointerCancelEvent event) {
+              _endPull(refresh: false);
               _gestureType = _GestureType.undecided;
               _accumulatedScroll = 0.0;
               _startPosition = null;
@@ -568,6 +648,30 @@ class _BrowserGestureNavigatorState extends State<BrowserGestureNavigator>
             },
             child: widget.child,
           ),
+          if (_pullDistance > 0 || _pullReleasing)
+            AnimatedPositioned(
+              // Follows the finger directly; animates only the slide back.
+              duration: _pullReleasing
+                  ? indicatorDismissDuration
+                  : Duration.zero,
+              curve: Curves.easeOutCubic,
+              top: _pullDistance - _PullRefreshIndicator.size,
+              left: 0,
+              right: 0,
+              onEnd: () {
+                if (mounted && _pullReleasing) {
+                  setState(() => _pullReleasing = false);
+                }
+              },
+              child: IgnorePointer(
+                child: Center(
+                  child: _PullRefreshIndicator(
+                    key: const Key('pull_refresh_indicator'),
+                    progress: _pullDistance / pullRefreshThreshold,
+                  ),
+                ),
+              ),
+            ),
           if (_indicatorDirection != SwipeDirection.none && _swipeProgress > 0)
             Positioned.fill(
               child: IgnorePointer(
@@ -580,6 +684,58 @@ class _BrowserGestureNavigatorState extends State<BrowserGestureNavigator>
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+/// Round refresh icon that rotates and fills in as the pull nears the
+/// threshold; turns to the accent colour once a release would refresh.
+class _PullRefreshIndicator extends StatelessWidget {
+  static const double size = 40.0;
+
+  /// Pull distance relative to the threshold (1.0 = release refreshes).
+  final double progress;
+
+  const _PullRefreshIndicator({super.key, required this.progress});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.extension<AppColorsExtension>()!;
+    final isDark = theme.brightness == Brightness.dark;
+    final clamped = progress.clamp(0.0, 1.0);
+    final reached = progress >= 1.0;
+
+    return Opacity(
+      opacity: 0.4 + clamped * 0.6,
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: reached
+              ? colors.accentActive
+              : (isDark ? const Color(0xFF2C2C2C) : Colors.white),
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.15),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Transform.rotate(
+          angle: clamped * math.pi,
+          child: Icon(
+            Icons.refresh,
+            size: 22,
+            color: reached
+                ? Colors.white
+                : (theme.iconTheme.color ??
+                      (isDark ? Colors.white : Colors.black87)),
+          ),
+        ),
       ),
     );
   }

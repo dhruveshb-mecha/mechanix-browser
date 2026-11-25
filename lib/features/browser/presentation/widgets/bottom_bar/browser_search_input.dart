@@ -55,6 +55,7 @@ class BrowserSearchInput extends StatelessWidget {
       textStyle: WidgetStatePropertyAll(
         theme.textTheme.bodyLarge?.copyWith(color: colors.searchBarText),
       ),
+      keyboardType: TextInputType.url,
       onChanged: onChanged,
       onSubmitted: onSubmitted,
     );

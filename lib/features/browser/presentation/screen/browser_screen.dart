@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mechanix_browser/features/browser/bloc/browser_bloc.dart';
 import 'package:mechanix_browser/features/browser/bloc/download/download_notification_toast.dart';
+import 'package:mechanix_browser/features/browser/presentation/shortcuts/browser_keyboard_shortcuts.dart';
 import 'package:mechanix_browser/features/browser/presentation/widgets/browser_bottom_bar.dart';
+import 'package:mechanix_browser/features/browser/presentation/widgets/permission/permission_prompt_overlay.dart';
 import 'package:mechanix_browser/features/browser/presentation/widgets/webview_body.dart';
 
 class BrowserScreen extends StatefulWidget {
@@ -13,10 +15,18 @@ class BrowserScreen extends StatefulWidget {
 }
 
 class _BrowserScreenState extends State<BrowserScreen> {
+  final _addressBarFocusNode = FocusNode(debugLabel: 'addressBar');
+
   @override
   void initState() {
     super.initState();
     context.read<BrowserBloc>().add(BrowserInitialized());
+  }
+
+  @override
+  void dispose() {
+    _addressBarFocusNode.dispose();
+    super.dispose();
   }
 
   double? _baseHeight;
@@ -34,49 +44,56 @@ class _BrowserScreenState extends State<BrowserScreen> {
 
     return BlocBuilder<BrowserBloc, BrowserState>(
       builder: (context, state) {
-        return Scaffold(
-          // Disable default Scaffold resizing to prevent the entire body 
-          // from squashing when the software keyboard pops up.
-          resizeToAvoidBottomInset: false,
-          body: Stack(
-            children: [
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  // Use the largest height captured to keep webview stable
-                  final targetHeight = _baseHeight ?? constraints.maxHeight;
-                  return SizedBox(
-                    width: constraints.maxWidth,
-                    height: constraints.maxHeight,
-                    child: OverflowBox(
-                      minHeight: targetHeight,
-                      maxHeight: targetHeight,
-                      alignment: Alignment.topCenter,
-                      child: state.isInitialized
-                          ? const BrowserWebviewBody()
-                          : const Center(child: CircularProgressIndicator()),
+        return BrowserKeyboardShortcuts(
+          addressBarFocusNode: _addressBarFocusNode,
+          child: Scaffold(
+            // Disable default Scaffold resizing to prevent the entire body
+            // from squashing when the software keyboard pops up.
+            resizeToAvoidBottomInset: false,
+            body: Stack(
+              children: [
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    // Use the largest height captured to keep webview stable
+                    final targetHeight = _baseHeight ?? constraints.maxHeight;
+                    return SizedBox(
+                      width: constraints.maxWidth,
+                      height: constraints.maxHeight,
+                      child: OverflowBox(
+                        minHeight: targetHeight,
+                        maxHeight: targetHeight,
+                        alignment: Alignment.topCenter,
+                        child: state.isInitialized
+                            ? const BrowserWebviewBody()
+                            : const Center(child: CircularProgressIndicator()),
+                      ),
+                    );
+                  },
+                ),
+                // Positioned bottom bar that dynamically floats above
+                // the software keyboard using viewInsets.bottom.
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: MediaQuery.of(context).viewInsets.bottom,
+                  child: AnimatedSlide(
+                    offset: state.isBottomBarVisible
+                        ? Offset.zero
+                        : const Offset(0, 1),
+                    duration: const Duration(milliseconds: 250),
+                    curve: Curves.easeInOut,
+                    child: SizedBox(
+                      height: 72.0,
+                      child: BrowserBottomBar(
+                        addressBarFocusNode: _addressBarFocusNode,
+                      ),
                     ),
-                  );
-                },
-              ),
-              // Positioned bottom bar that dynamically floats above 
-              // the software keyboard using viewInsets.bottom.
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: MediaQuery.of(context).viewInsets.bottom,
-                child: AnimatedSlide(
-                  offset: state.isBottomBarVisible
-                      ? Offset.zero
-                      : const Offset(0, 1),
-                  duration: const Duration(milliseconds: 250),
-                  curve: Curves.easeInOut,
-                  child: const SizedBox(
-                    height: 72.0,
-                    child: BrowserBottomBar(),
                   ),
                 ),
-              ),
 
+              // Camera/mic/location/... prompt for the active tab, shown
+              // above the bottom bar.
+              const PermissionPromptOverlay(),
               const DownloadNotificationOverlay(),
             ],
           ),

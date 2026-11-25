@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:equatable/equatable.dart';
@@ -8,6 +9,7 @@ import 'package:mechanix_browser/core/utils/app_logger.dart';
 import 'package:mechanix_browser/core/utils/constants.dart';
 import 'package:mechanix_browser/features/browser/bloc/download/browser_download.dart';
 import 'package:mechanix_browser/features/browser/bloc/download/download_bloc.dart';
+import 'package:mechanix_browser/features/browser/bloc/permission/permission_bloc.dart';
 import 'package:mechanix_browser/features/browser/data/models/bookmark.dart';
 import 'package:mechanix_browser/features/browser/data/models/browser_error_info.dart';
 import 'package:mechanix_browser/features/browser/data/models/browser_history.dart';
@@ -25,6 +27,9 @@ part 'browser_state.dart';
 
 class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
   final DownloadBloc? downloadBloc;
+
+  /// Receives camera/mic/location/... requests from every tab's webview.
+  final PermissionBloc? permissionBloc;
 
   /// Repository managing local browser history persistency.
   HistoryRepository? _historyRepository;
@@ -64,6 +69,26 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
   Timer? _hideTimer;
   bool _isInteracting = false;
 
+  /// Tabs whose page currently allows pull-to-refresh, as reported by the
+  /// page script for the touch in progress. Read at gesture time, so it is a
+  /// plain set rather than state (no rebuilds on every touch).
+  final Set<String> _pullToRefreshTabs = {};
+
+  /// Whether a downward pull on [tabId]'s page may refresh it.
+  bool canPullToRefresh(String tabId) => _pullToRefreshTabs.contains(tabId);
+
+  /// webview_cef's JS channels deliver the page's value JSON-encoded, so
+  /// `ScrollChannel('atTop')` arrives as `"atTop"`. Returns the plain string.
+  static String _channelMessage(String raw) {
+    try {
+      final value = jsonDecode(raw);
+      if (value is String) return value;
+    } on FormatException {
+      // Not JSON: use it as is.
+    }
+    return raw;
+  }
+
   static const Duration bottomBarAutoHideDuration =
       AppConstants.bottomBarAutoHideDuration;
 
@@ -90,6 +115,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
   /// Initializes a new instance of [BrowserBloc] and registers the event handlers.
   BrowserBloc({
     this.downloadBloc,
+    this.permissionBloc,
     this._historyRepository,
     this._tabRepository,
     this._bookmarkRepository,
@@ -184,35 +210,62 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     WebViewController controller, {
     bool isPrivate = false,
   }) {
+    // Defined once per tab, registered on URL change and again at load end
+    // (see onLoadEnd).
+    final Set<JavascriptChannel> jsChannels = {
+      JavascriptChannel(
+        name: 'Print',
+        onMessageReceived: (JavascriptMessage message) {
+          AppLogger.i(message.message);
+          controller.sendJavaScriptChannelCallBack(
+            false,
+            "{'code':'200','message':'print succeed!'}",
+            message.callbackId,
+            message.frameId,
+          );
+        },
+      ),
+      JavascriptChannel(
+        name: 'ScrollChannel',
+        onMessageReceived: (JavascriptMessage message) {
+          final msg = _channelMessage(message.message);
+          switch (msg) {
+            case 'atTop':
+              add(const BrowserBottomBarVisibilityChanged(true));
+            case 'pull:on':
+              _pullToRefreshTabs.add(tabId);
+            case 'pull:off':
+              _pullToRefreshTabs.remove(tabId);
+          }
+        },
+      ),
+    };
+
     return WebviewEventsListener(
+      onPermissionRequest: (c, request) {
+        permissionBloc?.add(
+          PermissionRequested(
+            tabId: tabId,
+            controller: c,
+            request: request,
+            isPrivate: isPrivate,
+          ),
+        );
+      },
+      onPermissionDismissed: (c, requestId, isMedia) {
+        permissionBloc?.add(
+          PermissionDismissed(
+            controller: c,
+            requestId: requestId,
+            isMedia: isMedia,
+          ),
+        );
+      },
       onTitleChanged: (t) {
         add(BrowserTitleChanged(tabId: tabId, title: t));
       },
       onUrlChanged: (url) {
         add(BrowserUrlChanged(tabId: tabId, url: url));
-
-        final Set<JavascriptChannel> jsChannels = {
-          JavascriptChannel(
-            name: 'Print',
-            onMessageReceived: (JavascriptMessage message) {
-              AppLogger.i(message.message);
-              controller.sendJavaScriptChannelCallBack(
-                false,
-                "{'code':'200','message':'print succeed!'}",
-                message.callbackId,
-                message.frameId,
-              );
-            },
-          ),
-          JavascriptChannel(
-            name: 'ScrollChannel',
-            onMessageReceived: (JavascriptMessage message) {
-              if (message.message == 'atTop') {
-                add(const BrowserBottomBarVisibilityChanged(true));
-              }
-            },
-          ),
-        };
         controller.setJavaScriptChannels(jsChannels);
         controller.executeJavaScript("function abc(e){return 'abc:'+ e}");
         controller
@@ -221,6 +274,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
       },
       onLoadStart: (c, url) {
         AppLogger.i("onLoadStart => $url");
+        _pullToRefreshTabs.remove(tabId);
         add(BrowserLoadStarted(tabId: tabId));
       },
       onLoadError: (c, errorCode, errorText, failedUrl, isMainFrame) {
@@ -237,25 +291,70 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
       onLoadEnd: (c, url) {
         add(BrowserLoadEnded(tabId: tabId));
 
+        // Registering the channels on URL change can run before the new
+        // page's JS context exists, leaving ScrollChannel undefined. Register
+        // again now; CEF runs this before the script below.
+        c.setJavaScriptChannels(jsChannels);
         c.executeJavaScript('''
           (function() {
+            // onLoadEnd fires per frame load; add the listeners only once.
+            if (window.__mxScrollScript) return;
+            window.__mxScrollScript = true;
+            // Never let a missing channel abort the script.
+            function post(m) {
+              if (typeof ScrollChannel === 'function') ScrollChannel(m);
+            }
+
             let lastScrollY = window.scrollY;
             let atTop = lastScrollY === 0;
 
             if (atTop) {
-              ScrollChannel('atTop');
+              post('atTop');
             }
 
             window.addEventListener('scroll', () => {
               const currentScrollY = window.scrollY;
               if (currentScrollY === 0 && !atTop) {
                 atTop = true;
-                ScrollChannel('atTop');
+                post('atTop');
               } else if (currentScrollY > 0 && atTop) {
                 atTop = false;
-                ScrollChannel('leftTop');
+                post('leftTop');
               }
-            });
+            }, {passive: true});
+
+            // Pull-to-refresh: decide once per touch whether a downward pull
+            // may refresh, and tell the browser only when that changes.
+            let canPull = false;
+            function setPull(value) {
+              if (value === canPull) return;
+              canPull = value;
+              post(value ? 'pull:on' : 'pull:off');
+            }
+            function blocksPull(el) {
+              const root = document.scrollingElement || document.documentElement;
+              if (root.scrollTop > 0) return true;
+              const rootStyle = getComputedStyle(root).overscrollBehaviorY;
+              if (rootStyle === 'none' || rootStyle === 'contain') return true;
+              for (; el && el !== root && el.nodeType === 1; el = el.parentElement) {
+                if (el.tagName === 'IFRAME') return true;
+                // Only scrolled elements matter, so check scrollTop before
+                // the (costlier) computed style.
+                if (el.scrollTop > 0) {
+                  const oy = getComputedStyle(el).overflowY;
+                  if (oy === 'auto' || oy === 'scroll') return true;
+                }
+              }
+              return false;
+            }
+            window.addEventListener('touchstart', (e) => {
+              setPull(e.touches.length === 1 && !blocksPull(e.target));
+            }, {passive: true});
+            // A page that handles the drag itself (maps, its own
+            // pull-to-refresh) cancels it: no refresh then.
+            window.addEventListener('touchmove', (e) => {
+              if (canPull && e.defaultPrevented) setPull(false);
+            }, {passive: true});
           })();
         ''');
       },
@@ -612,6 +711,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
       final index = tabsList.indexWhere((t) => t.id == tabId);
       if (index == -1) return;
       final tabToClose = tabsList[index];
+      _pullToRefreshTabs.remove(tabId);
 
       /// If only one tab remains in that list
       if (tabsList.length == 1) {
@@ -802,6 +902,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
       final tabsList = isPrivate ? state.privateTabs : state.normalTabs;
 
       for (final tab in tabsList) {
+        _pullToRefreshTabs.remove(tab.id);
         try {
           unawaited(_disposeOrDeferController(tab.controller));
         } catch (e, stackTrace) {
@@ -1559,6 +1660,31 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
       }
     } catch (e, stackTrace) {
       AppLogger.w("Error loading URL: $e $stackTrace");
+    }
+  }
+
+  /// Keeps [permissionBloc] in step with tab lifetimes: drops prompts and
+  /// per-visit decisions of closed tabs. Done here so every path that removes
+  /// tabs is covered.
+  @override
+  void onChange(Change<BrowserState> change) {
+    super.onChange(change);
+    final permissions = permissionBloc;
+    if (permissions == null) return;
+    final before = change.currentState;
+    final after = change.nextState;
+    if (identical(before.normalTabs, after.normalTabs) &&
+        identical(before.privateTabs, after.privateTabs)) {
+      return;
+    }
+    final remaining = {
+      for (final t in after.normalTabs) t.controller,
+      for (final t in after.privateTabs) t.controller,
+    };
+    for (final t in [...before.normalTabs, ...before.privateTabs]) {
+      if (!remaining.contains(t.controller)) {
+        permissions.add(PermissionControllerDisposed(t.controller));
+      }
     }
   }
 
